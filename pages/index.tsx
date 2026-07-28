@@ -47,6 +47,7 @@ interface StaffLeader {
 interface BestCategory {
   category: string;
   unitsSold: number;
+  revenue: number;
 }
 
 function computeStats(sales: Sale[]): Stats {
@@ -96,16 +97,27 @@ function computeStaffLeaderboard(sales: Sale[]): StaffLeader[] {
 }
 
 function computeBestCategory(sales: Sale[]): BestCategory | null {
-  const map = new Map<string, number>();
+  const map = new Map<string, { unitsSold: number; revenue: number }>();
   for (const sale of sales) {
     const cat = sale.category || 'Other';
-    map.set(cat, (map.get(cat) ?? 0) + sale.quantity);
+    const existing = map.get(cat) ?? { unitsSold: 0, revenue: 0 };
+    map.set(cat, { unitsSold: existing.unitsSold + sale.quantity, revenue: existing.revenue + sale.total });
   }
   if (map.size === 0) return null;
-  let best: BestCategory = { category: '', unitsSold: 0 };
-  map.forEach((unitsSold, category) => {
-    if (unitsSold > best.unitsSold) {
-      best = { category, unitsSold };
+
+  // Normalise both metrics 0-1 then average for a balanced score
+  const allUnits = Array.from(map.values()).map((v) => v.unitsSold);
+  const allRevenue = Array.from(map.values()).map((v) => v.revenue);
+  const maxUnits = Math.max(...allUnits);
+  const maxRevenue = Math.max(...allRevenue);
+
+  let best: BestCategory = { category: '', unitsSold: 0, revenue: 0 };
+  let bestScore = -1;
+  map.forEach(({ unitsSold, revenue }, category) => {
+    const score = (unitsSold / (maxUnits || 1)) * 0.5 + (revenue / (maxRevenue || 1)) * 0.5;
+    if (score > bestScore) {
+      bestScore = score;
+      best = { category, unitsSold, revenue };
     }
   });
   return best;
@@ -609,7 +621,7 @@ export default function Home() {
                     {bestCategory ? bestCategory.category : '—'}
                   </div>
                   {bestCategory && (
-                    <div className="stat-sub">{bestCategory.unitsSold} units sold</div>
+                    <div className="stat-sub">{bestCategory.unitsSold} units · {formatCurrency(bestCategory.revenue)}</div>
                   )}
                 </div>
               </div>
