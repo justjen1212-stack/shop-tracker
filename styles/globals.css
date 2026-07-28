@@ -12,10 +12,7 @@ html {
 
 body {
   font-family: 'Helvetica Neue', Helvetica, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-  background-color: #b8845a;
-  background-image: url('/wood-bg.png');
-  background-repeat: repeat;
-  background-size: 600px auto;
+  background-color: #f2ebe0;
   color: #3d2b1f;
   line-height: 1.5;
   min-height: 100vh;
@@ -30,10 +27,13 @@ body {
 
 /* ========== Header ========== */
 .header {
-  background-color: #3d2b1f;
+  background-color: #b8845a;
+  background-image: url('/wood-bg.png');
+  background-repeat: repeat;
+  background-size: 600px auto;
   color: #fff;
   padding: 0 1.5rem;
-  box-shadow: 0 2px 8px rgba(61, 43, 31, 0.25);
+  box-shadow: 0 2px 8px rgba(61, 43, 31, 0.35);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -639,10 +639,7 @@ body {
 /* ========== Login Page ========== */
 .login-page {
   min-height: 100vh;
-  background-color: #b8845a;
-  background-image: url('/wood-bg.png');
-  background-repeat: repeat;
-  background-size: 600px auto;
+  background: #f2ebe0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -660,7 +657,10 @@ body {
 }
 
 .login-header {
-  background: #3d2b1f;
+  background-color: #b8845a;
+  background-image: url('/wood-bg.png');
+  background-repeat: repeat;
+  background-size: 600px auto;
   padding: 2rem 2rem 1.75rem;
   text-align: center;
   border-bottom: 3px solid #7d4e2d;
