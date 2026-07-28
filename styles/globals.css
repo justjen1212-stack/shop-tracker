@@ -423,6 +423,24 @@ body {
   color: #fff;
 }
 
+.btn-edit {
+  background: transparent;
+  color: #7d4e2d;
+  border: 1.5px solid #c49a6c;
+  border-radius: 6px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.btn-edit:hover {
+  background: #f5e6d0;
+  border-color: #7d4e2d;
+}
+
 .btn-delete {
   background: transparent;
   color: #b91c1c;

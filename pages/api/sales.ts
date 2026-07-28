@@ -69,6 +69,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
+  if (req.method === 'PUT') {
+    const { id } = req.query;
+
+    if (!id || typeof id !== 'string') {
+      return res.status(400).json({ error: 'Missing id query parameter' });
+    }
+
+    const body = req.body as Omit<Sale, 'id' | 'timestamp'>;
+    const { productName, quantity, pricePerUnit, total, paymentType, staffName, date, category } = body;
+
+    if (!productName || !quantity || !pricePerUnit || !total || !paymentType || !staffName || !date) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    try {
+      await adminDb.collection('shop_sales').doc(id).update({
+        productName,
+        quantity: Number(quantity),
+        pricePerUnit: Number(pricePerUnit),
+        total: Number(total),
+        paymentType,
+        staffName,
+        date,
+        category: category ?? 'Other',
+      });
+
+      return res.status(200).json({ success: true });
+    } catch (error: any) {
+      console.error('PUT /api/sales error:', error);
+      return res.status(500).json({ error: error.message ?? 'Failed to update sale' });
+    }
+  }
+
   if (req.method === 'DELETE') {
     const { id } = req.query;
 

@@ -140,6 +140,7 @@ export default function Home() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingSale, setEditingSale] = useState<Sale | null>(null);
 
   // Auth check on page load
   useEffect(() => {
@@ -184,6 +185,21 @@ export default function Home() {
 
   const openModal = () => {
     setFormData(emptyForm);
+    setEditingSale(null);
+    setFormError(null);
+    setModalOpen(true);
+  };
+
+  const openEditModal = (sale: Sale) => {
+    setEditingSale(sale);
+    setFormData({
+      productName: sale.productName,
+      quantity: sale.quantity,
+      pricePerUnit: sale.pricePerUnit,
+      paymentType: sale.paymentType,
+      staffName: sale.staffName,
+      category: sale.category || 'Other',
+    });
     setFormError(null);
     setModalOpen(true);
   };
@@ -191,6 +207,7 @@ export default function Home() {
   const closeModal = () => {
     setModalOpen(false);
     setFormError(null);
+    setEditingSale(null);
   };
 
   const handleFormChange = (
@@ -239,13 +256,16 @@ export default function Home() {
         category: formData.category,
       };
 
-      const res = await fetch('/api/sales', {
-        method: 'POST',
+      const url = editingSale ? `/api/sales?id=${editingSale.id}` : '/api/sales';
+      const method = editingSale ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Failed to add sale');
+      if (!res.ok) throw new Error(data.error ?? (editingSale ? 'Failed to update sale' : 'Failed to add sale'));
 
       closeModal();
       await fetchSales(selectedDate);
@@ -494,13 +514,21 @@ export default function Home() {
                             </td>
                             <td>{sale.staffName}</td>
                             <td>
-                              <button
-                                className="btn-delete"
-                                onClick={() => handleDelete(sale.id!)}
-                                disabled={deletingId === sale.id}
-                              >
-                                {deletingId === sale.id ? '...' : 'Delete'}
-                              </button>
+                              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                                <button
+                                  className="btn-edit"
+                                  onClick={() => openEditModal(sale)}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  className="btn-delete"
+                                  onClick={() => handleDelete(sale.id!)}
+                                  disabled={deletingId === sale.id}
+                                >
+                                  {deletingId === sale.id ? '...' : 'Delete'}
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -525,7 +553,7 @@ export default function Home() {
             aria-labelledby="modal-title"
           >
             <div className="modal-header">
-              <h2 id="modal-title" className="modal-title">Add Sale</h2>
+              <h2 id="modal-title" className="modal-title">{editingSale ? 'Edit Sale' : 'Add Sale'}</h2>
               <button className="modal-close" onClick={closeModal} aria-label="Close">
                 ✕
               </button>
@@ -645,7 +673,7 @@ export default function Home() {
                   className="btn-primary"
                   disabled={submitting || calculatedTotal <= 0}
                 >
-                  {submitting ? 'Saving...' : 'Add Sale'}
+                  {submitting ? 'Saving...' : editingSale ? 'Save Changes' : 'Add Sale'}
                 </button>
               </div>
             </form>
