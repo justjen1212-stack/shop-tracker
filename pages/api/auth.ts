@@ -11,7 +11,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       const maxAge = 60 * 60 * 24 * 7; // 7 days in seconds
       res.setHeader(
         'Set-Cookie',
-        `auth=authenticated; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=Lax`
+        `auth=authenticated; Path=/; Max-Age=${maxAge}; SameSite=Lax`
       );
       return res.status(200).json({ success: true });
     }
