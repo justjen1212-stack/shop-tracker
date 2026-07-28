@@ -38,6 +38,7 @@ export default function Login() {
       <Head>
         <title>Login — Scape West</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/logo.png" />
       </Head>
 
       <div className="login-page">
