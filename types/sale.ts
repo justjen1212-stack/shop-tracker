@@ -8,6 +8,7 @@ export interface Sale {
   staffName: string;
   timestamp: any; // Firestore Timestamp
   date: string; // YYYY-MM-DD
+  category: string;
 }
 
 export interface SaleFormData {
@@ -16,4 +17,5 @@ export interface SaleFormData {
   pricePerUnit: number;
   paymentType: 'cash' | 'card' | 'online';
   staffName: string;
+  category: string;
 }

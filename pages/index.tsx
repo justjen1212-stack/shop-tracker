@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { Sale, SaleFormData } from '../types/sale';
 
@@ -20,6 +21,8 @@ function formatTime(isoString: string | null): string {
   return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
+const CATEGORIES = ['Furniture', 'Mirrors', 'Lighting', 'Textiles', 'Accessories', 'Artwork', 'Other'];
+
 interface Stats {
   totalRevenue: number;
   numberOfSales: number;
@@ -39,6 +42,11 @@ interface StaffLeader {
   staffName: string;
   totalRevenue: number;
   salesCount: number;
+}
+
+interface BestCategory {
+  category: string;
+  totalRevenue: number;
 }
 
 function computeStats(sales: Sale[]): Stats {
@@ -87,6 +95,22 @@ function computeStaffLeaderboard(sales: Sale[]): StaffLeader[] {
   return Array.from(map.values()).sort((a, b) => b.totalRevenue - a.totalRevenue);
 }
 
+function computeBestCategory(sales: Sale[]): BestCategory | null {
+  const map = new Map<string, number>();
+  for (const sale of sales) {
+    const cat = sale.category || 'Other';
+    map.set(cat, (map.get(cat) ?? 0) + sale.total);
+  }
+  if (map.size === 0) return null;
+  let best: BestCategory = { category: '', totalRevenue: 0 };
+  map.forEach((totalRevenue, category) => {
+    if (totalRevenue > best.totalRevenue) {
+      best = { category, totalRevenue };
+    }
+  });
+  return best;
+}
+
 const PAYMENT_LABELS: Record<string, string> = {
   cash: 'Cash',
   card: 'Card',
@@ -99,9 +123,12 @@ const emptyForm: SaleFormData = {
   pricePerUnit: 0,
   paymentType: 'cash',
   staffName: '',
+  category: 'Furniture',
 };
 
 export default function Home() {
+  const router = useRouter();
+  const [authChecked, setAuthChecked] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string>(todayString());
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -113,6 +140,17 @@ export default function Home() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Auth check on page load
+  useEffect(() => {
+    const cookies = document.cookie.split(';').map((c) => c.trim());
+    const isAuth = cookies.some((c) => c.startsWith('auth=') && c.split('=')[1] === 'authenticated');
+    if (!isAuth) {
+      router.push('/login');
+    } else {
+      setAuthChecked(true);
+    }
+  }, [router]);
 
   const fetchSales = useCallback(async (date: string) => {
     setLoading(true);
@@ -130,8 +168,15 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    fetchSales(selectedDate);
-  }, [selectedDate, fetchSales]);
+    if (authChecked) {
+      fetchSales(selectedDate);
+    }
+  }, [selectedDate, fetchSales, authChecked]);
+
+  const handleLogout = async () => {
+    await fetch('/api/auth', { method: 'DELETE' });
+    router.push('/login');
+  };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSelectedDate(e.target.value);
@@ -191,6 +236,7 @@ export default function Home() {
         paymentType: formData.paymentType,
         staffName: formData.staffName.trim(),
         date: selectedDate,
+        category: formData.category,
       };
 
       const res = await fetch('/api/sales', {
@@ -228,11 +274,16 @@ export default function Home() {
   const stats = computeStats(sales);
   const bestSellers = computeBestSellers(sales);
   const staffLeaderboard = computeStaffLeaderboard(sales);
+  const bestCategory = computeBestCategory(sales);
+
+  if (!authChecked) {
+    return null;
+  }
 
   return (
     <>
       <Head>
-        <title>Shop Sales Tracker</title>
+        <title>Scape West — Sales Dashboard</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
@@ -240,13 +291,18 @@ export default function Home() {
         {/* Header */}
         <header className="header">
           <div className="header-inner">
-            <h1 className="header-title">
-              <span className="header-icon">🛍️</span>
-              Shop Sales Tracker
-            </h1>
-            <button className="btn-primary" onClick={openModal}>
-              + Add Sale
-            </button>
+            <div className="header-title-block">
+              <h1 className="header-title">Scape West</h1>
+              <span className="header-subtitle">Sales Dashboard</span>
+            </div>
+            <div className="header-actions">
+              <button className="btn-primary" onClick={openModal}>
+                + Add Sale
+              </button>
+              <button className="btn-logout" onClick={handleLogout}>
+                Log out
+              </button>
+            </div>
           </div>
         </header>
 
@@ -291,6 +347,15 @@ export default function Home() {
                 <div className="stat-card stat-card--purple">
                   <div className="stat-label">Average Sale</div>
                   <div className="stat-value">{formatCurrency(stats.averageSale)}</div>
+                </div>
+                <div className="stat-card stat-card--amber">
+                  <div className="stat-label">Best Selling Category</div>
+                  <div className="stat-value" style={{ fontSize: bestCategory ? '1.35rem' : '1.85rem' }}>
+                    {bestCategory ? bestCategory.category : '—'}
+                  </div>
+                  {bestCategory && (
+                    <div className="stat-sub">{formatCurrency(bestCategory.totalRevenue)}</div>
+                  )}
                 </div>
               </div>
 
@@ -404,6 +469,7 @@ export default function Home() {
                         <tr>
                           <th>Time</th>
                           <th>Product</th>
+                          <th>Category</th>
                           <th>Qty</th>
                           <th>Unit Price</th>
                           <th>Total</th>
@@ -417,6 +483,7 @@ export default function Home() {
                           <tr key={sale.id}>
                             <td className="time-cell">{formatTime(sale.timestamp)}</td>
                             <td className="product-name">{sale.productName}</td>
+                            <td>{sale.category || 'Other'}</td>
                             <td>{sale.quantity}</td>
                             <td>{formatCurrency(sale.pricePerUnit)}</td>
                             <td className="revenue">{formatCurrency(sale.total)}</td>
@@ -475,12 +542,27 @@ export default function Home() {
                   id="productName"
                   name="productName"
                   type="text"
-                  placeholder="e.g. Blue Widget"
+                  placeholder="e.g. Oak Side Table"
                   value={formData.productName}
                   onChange={handleFormChange}
                   autoComplete="off"
                   required
                 />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="category">Category</label>
+                <select
+                  id="category"
+                  name="category"
+                  value={formData.category}
+                  onChange={handleFormChange}
+                  required
+                >
+                  {CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="form-row">
