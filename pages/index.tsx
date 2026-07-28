@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { Sale, SaleFormData } from '../types/sale';
+import { Sale, SaleFormData, Product } from '../types/sale';
 
 function todayString(): string {
   const d = new Date();
@@ -46,7 +46,7 @@ interface StaffLeader {
 
 interface BestCategory {
   category: string;
-  totalRevenue: number;
+  unitsSold: number;
 }
 
 function computeStats(sales: Sale[]): Stats {
@@ -99,13 +99,13 @@ function computeBestCategory(sales: Sale[]): BestCategory | null {
   const map = new Map<string, number>();
   for (const sale of sales) {
     const cat = sale.category || 'Other';
-    map.set(cat, (map.get(cat) ?? 0) + sale.total);
+    map.set(cat, (map.get(cat) ?? 0) + sale.quantity);
   }
   if (map.size === 0) return null;
-  let best: BestCategory = { category: '', totalRevenue: 0 };
-  map.forEach((totalRevenue, category) => {
-    if (totalRevenue > best.totalRevenue) {
-      best = { category, totalRevenue };
+  let best: BestCategory = { category: '', unitsSold: 0 };
+  map.forEach((unitsSold, category) => {
+    if (unitsSold > best.unitsSold) {
+      best = { category, unitsSold };
     }
   });
   return best;
@@ -142,6 +142,17 @@ export default function Home() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
 
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productsModalOpen, setProductsModalOpen] = useState<boolean>(false);
+  const [productForm, setProductForm] = useState<{ name: string; pricePerUnit: number; category: string }>({
+    name: '',
+    pricePerUnit: 0,
+    category: 'Furniture',
+  });
+  const [productFormError, setProductFormError] = useState<string | null>(null);
+  const [productSubmitting, setProductSubmitting] = useState<boolean>(false);
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
+
   // Auth check on page load
   useEffect(() => {
     const cookies = document.cookie.split(';').map((c) => c.trim());
@@ -168,11 +179,22 @@ export default function Home() {
     }
   }, []);
 
+  const fetchProducts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/products');
+      const data = await res.json();
+      if (res.ok) setProducts(data.products);
+    } catch {
+      // non-critical, ignore
+    }
+  }, []);
+
   useEffect(() => {
     if (authChecked) {
       fetchSales(selectedDate);
+      fetchProducts();
     }
-  }, [selectedDate, fetchSales, authChecked]);
+  }, [selectedDate, fetchSales, fetchProducts, authChecked]);
 
   const handleLogout = async () => {
     await fetch('/api/auth', { method: 'DELETE' });
@@ -208,6 +230,89 @@ export default function Home() {
     setModalOpen(false);
     setFormError(null);
     setEditingSale(null);
+  };
+
+  const openProductsModal = () => {
+    setProductForm({ name: '', pricePerUnit: 0, category: 'Furniture' });
+    setProductFormError(null);
+    setProductsModalOpen(true);
+  };
+
+  const closeProductsModal = () => {
+    setProductsModalOpen(false);
+    setProductFormError(null);
+  };
+
+  const handleProductFormChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setProductForm((prev) => ({
+      ...prev,
+      [name]: name === 'pricePerUnit' ? Number(value) : value,
+    }));
+  };
+
+  const handleAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProductFormError(null);
+    if (!productForm.name.trim()) {
+      setProductFormError('Product name is required.');
+      return;
+    }
+    if (productForm.pricePerUnit <= 0) {
+      setProductFormError('Price must be greater than 0.');
+      return;
+    }
+    setProductSubmitting(true);
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: productForm.name.trim(),
+          pricePerUnit: productForm.pricePerUnit,
+          category: productForm.category,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to add product');
+      setProductForm({ name: '', pricePerUnit: 0, category: 'Furniture' });
+      await fetchProducts();
+    } catch (e: any) {
+      setProductFormError(e.message);
+    } finally {
+      setProductSubmitting(false);
+    }
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    if (!confirm('Delete this product from the catalogue?')) return;
+    setDeletingProductId(id);
+    try {
+      const res = await fetch(`/api/products?id=${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to delete');
+      await fetchProducts();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setDeletingProductId(null);
+    }
+  };
+
+  const handleQuickSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const productId = e.target.value;
+    if (!productId) return;
+    const product = products.find((p) => p.id === productId);
+    if (product) {
+      setFormData((prev) => ({
+        ...prev,
+        productName: product.name,
+        pricePerUnit: product.pricePerUnit,
+        category: product.category,
+      }));
+    }
   };
 
   const handleFormChange = (
@@ -316,6 +421,9 @@ export default function Home() {
               <span className="header-subtitle">Sales Dashboard</span>
             </div>
             <div className="header-actions">
+              <button className="btn-secondary" onClick={openProductsModal}>
+                Manage Products
+              </button>
               <button className="btn-primary" onClick={openModal}>
                 + Add Sale
               </button>
@@ -374,7 +482,7 @@ export default function Home() {
                     {bestCategory ? bestCategory.category : '—'}
                   </div>
                   {bestCategory && (
-                    <div className="stat-sub">{formatCurrency(bestCategory.totalRevenue)}</div>
+                    <div className="stat-sub">{bestCategory.unitsSold} units sold</div>
                   )}
                 </div>
               </div>
@@ -542,6 +650,133 @@ export default function Home() {
         </main>
       </div>
 
+      {/* Products Modal */}
+      {productsModalOpen && (
+        <div className="modal-overlay" onClick={closeProductsModal}>
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="products-modal-title"
+            style={{ maxWidth: '560px' }}
+          >
+            <div className="modal-header">
+              <h2 id="products-modal-title" className="modal-title">Product Catalogue</h2>
+              <button className="modal-close" onClick={closeProductsModal} aria-label="Close">
+                ✕
+              </button>
+            </div>
+
+            {/* Existing products list */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              {products.length === 0 ? (
+                <p className="empty-text">No products in catalogue yet.</p>
+              ) : (
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Price</th>
+                      <th>Category</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.map((product) => (
+                      <tr key={product.id}>
+                        <td className="product-name">{product.name}</td>
+                        <td>{formatCurrency(product.pricePerUnit)}</td>
+                        <td>{product.category}</td>
+                        <td>
+                          <button
+                            className="btn-delete"
+                            onClick={() => handleDeleteProduct(product.id!)}
+                            disabled={deletingProductId === product.id}
+                          >
+                            {deletingProductId === product.id ? '...' : 'Delete'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Add new product form */}
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.25rem' }}>
+              <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', color: 'var(--text-primary)' }}>Add New Product</h3>
+              <form onSubmit={handleAddProduct} className="sale-form">
+                {productFormError && (
+                  <div className="form-error">{productFormError}</div>
+                )}
+                <div className="form-group">
+                  <label htmlFor="productCatName">Name</label>
+                  <input
+                    id="productCatName"
+                    name="name"
+                    type="text"
+                    placeholder="e.g. Oak Side Table"
+                    value={productForm.name}
+                    onChange={handleProductFormChange}
+                    autoComplete="off"
+                    required
+                  />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="productCatPrice">Price per Unit (£)</label>
+                    <input
+                      id="productCatPrice"
+                      name="pricePerUnit"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={productForm.pricePerUnit === 0 ? '' : productForm.pricePerUnit}
+                      onChange={handleProductFormChange}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="productCatCategory">Category</label>
+                    <select
+                      id="productCatCategory"
+                      name="category"
+                      value={productForm.category}
+                      onChange={handleProductFormChange}
+                      required
+                    >
+                      {CATEGORIES.map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="form-actions">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={closeProductsModal}
+                    disabled={productSubmitting}
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-primary"
+                    disabled={productSubmitting}
+                  >
+                    {productSubmitting ? 'Adding...' : 'Add Product'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add Sale Modal */}
       {modalOpen && (
         <div className="modal-overlay" onClick={closeModal}>
@@ -562,6 +797,24 @@ export default function Home() {
             <form onSubmit={handleSubmit} className="sale-form">
               {formError && (
                 <div className="form-error">{formError}</div>
+              )}
+
+              {products.length > 0 && (
+                <div className="form-group">
+                  <label htmlFor="quickSelect">Select a product (optional)</label>
+                  <select
+                    id="quickSelect"
+                    onChange={handleQuickSelect}
+                    defaultValue=""
+                  >
+                    <option value="">— choose from catalogue —</option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} — {formatCurrency(p.pricePerUnit)} ({p.category})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
 
               <div className="form-group">

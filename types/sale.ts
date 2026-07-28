@@ -19,3 +19,10 @@ export interface SaleFormData {
   staffName: string;
   category: string;
 }
+
+export interface Product {
+  id?: string;
+  name: string;
+  pricePerUnit: number;
+  category: string;
+}
