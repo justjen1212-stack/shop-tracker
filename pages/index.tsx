@@ -312,7 +312,7 @@ export default function Home() {
         <header className="header">
           <div className="header-inner">
             <div className="header-title-block">
-              <h1 className="header-title">Scape West</h1>
+              <img src="/logo.png" alt="Scape West" className="header-logo" />
               <span className="header-subtitle">Sales Dashboard</span>
             </div>
             <div className="header-actions">
