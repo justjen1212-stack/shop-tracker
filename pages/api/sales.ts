@@ -5,8 +5,41 @@ import { Sale } from '../../types/sale';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
-    const { date } = req.query;
+    const { date, from, to } = req.query;
 
+    // Date-range query: ?from=YYYY-MM-DD&to=YYYY-MM-DD
+    if (from && to && typeof from === 'string' && typeof to === 'string') {
+      try {
+        const snapshot = await adminDb
+          .collection('shop_sales')
+          .where('date', '>=', from)
+          .where('date', '<=', to)
+          .get();
+
+        const sales: Sale[] = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            productName: data.productName,
+            quantity: data.quantity,
+            pricePerUnit: data.pricePerUnit,
+            total: data.total,
+            paymentType: data.paymentType,
+            staffName: data.staffName,
+            timestamp: data.timestamp?.toDate?.()?.toISOString() ?? null,
+            date: data.date,
+            category: data.category ?? 'Other',
+          };
+        });
+
+        return res.status(200).json({ sales });
+      } catch (error: any) {
+        console.error('GET /api/sales (range) error:', error);
+        return res.status(500).json({ error: error.message ?? 'Failed to fetch sales' });
+      }
+    }
+
+    // Single-day query: ?date=YYYY-MM-DD
     if (!date || typeof date !== 'string') {
       return res.status(400).json({ error: 'Missing date query parameter' });
     }

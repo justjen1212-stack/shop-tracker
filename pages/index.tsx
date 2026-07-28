@@ -11,6 +11,38 @@ function todayString(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function getWeekRange(date: string): { from: string; to: string } {
+  const d = new Date(date);
+  const day = d.getDay(); // 0=Sun
+  const diffToMon = (day === 0 ? -6 : 1 - day);
+  const mon = new Date(d); mon.setDate(d.getDate() + diffToMon);
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  const fmt = (x: Date) => x.toISOString().slice(0, 10);
+  return { from: fmt(mon), to: fmt(sun) };
+}
+
+function getMonthRange(date: string): { from: string; to: string } {
+  const [y, m] = date.split('-').map(Number);
+  const last = new Date(y, m, 0).getDate();
+  return { from: `${date.slice(0, 7)}-01`, to: `${date.slice(0, 7)}-${String(last).padStart(2, '0')}` };
+}
+
+function getQuarterRange(date: string): { from: string; to: string } {
+  const [y, m] = date.split('-').map(Number);
+  const q = Math.floor((m - 1) / 3);
+  const fromMonth = String(q * 3 + 1).padStart(2, '0');
+  const toMonth = String(q * 3 + 3).padStart(2, '00');
+  const lastDay = new Date(y, q * 3 + 3, 0).getDate();
+  return { from: `${y}-${fromMonth}-01`, to: `${y}-${toMonth}-${lastDay}` };
+}
+
+function formatDateRange(from: string, to: string): string {
+  const f = new Date(from);
+  const t = new Date(to);
+  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
+  return `${f.toLocaleDateString('en-GB', opts)} – ${t.toLocaleDateString('en-GB', opts)}`;
+}
+
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(amount);
 }
@@ -123,6 +155,24 @@ function computeBestCategory(sales: Sale[]): BestCategory | null {
   return best;
 }
 
+function computeTop10(sales: Sale[]): { byQty: BestSeller[]; byValue: BestSeller[] } {
+  const map = new Map<string, BestSeller>();
+  for (const sale of sales) {
+    const existing = map.get(sale.productName);
+    if (existing) {
+      existing.totalRevenue += sale.total;
+      existing.unitsSold += sale.quantity;
+    } else {
+      map.set(sale.productName, { productName: sale.productName, totalRevenue: sale.total, unitsSold: sale.quantity });
+    }
+  }
+  const all = Array.from(map.values());
+  return {
+    byQty: [...all].sort((a, b) => b.unitsSold - a.unitsSold).slice(0, 10),
+    byValue: [...all].sort((a, b) => b.totalRevenue - a.totalRevenue).slice(0, 10),
+  };
+}
+
 const PAYMENT_LABELS: Record<string, string> = {
   cash: 'Cash',
   card: 'Card',
@@ -191,6 +241,11 @@ export default function Home() {
   const [cashoutSaving, setCashoutSaving] = useState(false);
   const [cashoutSaved, setCashoutSaved] = useState(false);
 
+  // Best sellers period state
+  const [periodTab, setPeriodTab] = useState<'week' | 'month' | 'quarter'>('week');
+  const [periodSales, setPeriodSales] = useState<{ week: Sale[]; month: Sale[]; quarter: Sale[] }>({ week: [], month: [], quarter: [] });
+  const [periodLoading, setPeriodLoading] = useState(false);
+
   // Auth check on page load
   useEffect(() => {
     const cookies = document.cookie.split(';').map((c) => c.trim());
@@ -231,12 +286,44 @@ export default function Home() {
     }
   }, []);
 
+  const fetchPeriodSales = useCallback(async (date: string) => {
+    setPeriodLoading(true);
+    try {
+      const weekRange = getWeekRange(date);
+      const monthRange = getMonthRange(date);
+      const quarterRange = getQuarterRange(date);
+
+      const [weekRes, monthRes, quarterRes] = await Promise.all([
+        fetch(`/api/sales?from=${weekRange.from}&to=${weekRange.to}`),
+        fetch(`/api/sales?from=${monthRange.from}&to=${monthRange.to}`),
+        fetch(`/api/sales?from=${quarterRange.from}&to=${quarterRange.to}`),
+      ]);
+
+      const [weekData, monthData, quarterData] = await Promise.all([
+        weekRes.json(),
+        monthRes.json(),
+        quarterRes.json(),
+      ]);
+
+      setPeriodSales({
+        week: weekRes.ok ? (weekData.sales as Sale[]) : [],
+        month: monthRes.ok ? (monthData.sales as Sale[]) : [],
+        quarter: quarterRes.ok ? (quarterData.sales as Sale[]) : [],
+      });
+    } catch {
+      // non-critical, silently ignore
+    } finally {
+      setPeriodLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (authChecked) {
       fetchSales(selectedDate);
       fetchProducts();
+      fetchPeriodSales(selectedDate);
     }
-  }, [selectedDate, fetchSales, fetchProducts, authChecked]);
+  }, [selectedDate, fetchSales, fetchProducts, fetchPeriodSales, authChecked]);
 
   const handleLogout = async () => {
     await fetch('/api/auth', { method: 'DELETE' });
@@ -907,6 +994,103 @@ export default function Home() {
                     </button>
                   </>
                 )}
+              </div>
+
+              {/* Best Sellers — Period Reporting */}
+              <div className="section-card">
+                <h2 className="section-title">Best Sellers</h2>
+
+                {/* Tab bar */}
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                  <button
+                    className={periodTab === 'week' ? 'btn-primary' : 'btn-secondary'}
+                    onClick={() => setPeriodTab('week')}
+                  >
+                    This Week
+                  </button>
+                  <button
+                    className={periodTab === 'month' ? 'btn-primary' : 'btn-secondary'}
+                    onClick={() => setPeriodTab('month')}
+                  >
+                    This Month
+                  </button>
+                  <button
+                    className={periodTab === 'quarter' ? 'btn-primary' : 'btn-secondary'}
+                    onClick={() => setPeriodTab('quarter')}
+                  >
+                    This Quarter
+                  </button>
+                </div>
+
+                {/* Date range label */}
+                <p style={{ fontSize: '0.82rem', color: '#9b7d5e', marginBottom: '1.25rem' }}>
+                  {periodTab === 'week' && formatDateRange(getWeekRange(selectedDate).from, getWeekRange(selectedDate).to)}
+                  {periodTab === 'month' && formatDateRange(getMonthRange(selectedDate).from, getMonthRange(selectedDate).to)}
+                  {periodTab === 'quarter' && formatDateRange(getQuarterRange(selectedDate).from, getQuarterRange(selectedDate).to)}
+                </p>
+
+                {periodLoading ? (
+                  <p className="empty-text">Loading...</p>
+                ) : (() => {
+                  const activeSales = periodSales[periodTab];
+                  if (activeSales.length === 0) {
+                    return <p className="empty-text">No sales in this period.</p>;
+                  }
+                  const { byQty, byValue } = computeTop10(activeSales);
+                  return (
+                    <div className="two-col">
+                      {/* Top 10 by Units Sold */}
+                      <div>
+                        <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#3d2b1f', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Top 10 by Units Sold
+                        </h3>
+                        <table className="table">
+                          <thead>
+                            <tr>
+                              <th>Rank</th>
+                              <th>Product</th>
+                              <th>Units</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {byQty.map((item, idx) => (
+                              <tr key={item.productName}>
+                                <td className="rank">{idx + 1}</td>
+                                <td className="product-name">{item.productName}</td>
+                                <td>{item.unitsSold}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Top 10 by Value */}
+                      <div>
+                        <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#3d2b1f', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Top 10 by Value
+                        </h3>
+                        <table className="table">
+                          <thead>
+                            <tr>
+                              <th>Rank</th>
+                              <th>Product</th>
+                              <th>Revenue</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {byValue.map((item, idx) => (
+                              <tr key={item.productName}>
+                                <td className="rank">{idx + 1}</td>
+                                <td className="product-name">{item.productName}</td>
+                                <td className="revenue">{formatCurrency(item.totalRevenue)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </>
           )}
