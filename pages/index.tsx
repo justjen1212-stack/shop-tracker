@@ -197,7 +197,11 @@ export default function Home() {
       const res = await fetch(`/api/sales?date=${date}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Failed to fetch');
-      setSales(data.sales);
+      setSales((data.sales as Sale[]).sort((a, b) => {
+        if (!a.timestamp) return -1;
+        if (!b.timestamp) return 1;
+        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+      }));
     } catch (e: any) {
       setError(e.message);
     } finally {
