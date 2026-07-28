@@ -12,7 +12,10 @@ html {
 
 body {
   font-family: 'Helvetica Neue', Helvetica, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-  background-color: #f2ebe0;
+  background-color: #b8845a;
+  background-image: url('/wood-bg.png');
+  background-repeat: repeat;
+  background-size: 600px auto;
   color: #3d2b1f;
   line-height: 1.5;
   min-height: 100vh;
@@ -636,7 +639,10 @@ body {
 /* ========== Login Page ========== */
 .login-page {
   min-height: 100vh;
-  background: #f2ebe0;
+  background-color: #b8845a;
+  background-image: url('/wood-bg.png');
+  background-repeat: repeat;
+  background-size: 600px auto;
   display: flex;
   align-items: center;
   justify-content: center;
