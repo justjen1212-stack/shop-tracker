@@ -15,7 +15,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const snapshot = await adminDb
         .collection('shop_sales')
         .where('date', '==', date)
-        .orderBy('timestamp', 'desc')
         .get();
 
       const sales: Sale[] = snapshot.docs.map((doc) => {
