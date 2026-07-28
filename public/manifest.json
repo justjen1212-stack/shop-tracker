@@ -1,0 +1,11 @@
+{
+  "name": "Scape West Sales",
+  "short_name": "Scape West",
+  "icons": [
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#3d2b1f",
+  "theme_color": "#3d2b1f"
+}

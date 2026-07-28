@@ -39,6 +39,9 @@ export default function Login() {
         <title>Login — Scape West</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/logo.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#3d2b1f" />
       </Head>
 
       <div className="login-page">
