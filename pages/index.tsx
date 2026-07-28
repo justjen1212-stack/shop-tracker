@@ -153,6 +153,32 @@ export default function Home() {
   const [productSubmitting, setProductSubmitting] = useState<boolean>(false);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
 
+  // Cashout state
+  const [cashout, setCashout] = useState<{
+    openingFloat: number;
+    cardSales: number;
+    cashSales: number;
+    closingFloat: number;
+    cashToBank: number;
+    actualCashCounted: number;
+    tally: number;
+    notes: string;
+    saved: boolean;
+  }>({
+    openingFloat: 0,
+    cardSales: 0,
+    cashSales: 0,
+    closingFloat: 0,
+    cashToBank: 0,
+    actualCashCounted: 0,
+    tally: 0,
+    notes: '',
+    saved: false,
+  });
+  const [cashoutLoading, setCashoutLoading] = useState(false);
+  const [cashoutSaving, setCashoutSaving] = useState(false);
+  const [cashoutSaved, setCashoutSaved] = useState(false);
+
   // Auth check on page load
   useEffect(() => {
     const cookies = document.cookie.split(';').map((c) => c.trim());
@@ -395,6 +421,102 @@ export default function Home() {
       setDeletingId(null);
     }
   };
+
+  const fetchCashout = useCallback(async (date: string, currentStats: Stats) => {
+    setCashoutLoading(true);
+    try {
+      const res = await fetch(`/api/cashout?date=${date}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to fetch cashout');
+
+      if (data.cashout) {
+        setCashout({
+          openingFloat: data.cashout.openingFloat ?? 0,
+          cardSales: data.cashout.cardSales ?? 0,
+          cashSales: data.cashout.cashSales ?? 0,
+          closingFloat: data.cashout.closingFloat ?? 0,
+          cashToBank: data.cashout.cashToBank ?? 0,
+          actualCashCounted: data.cashout.actualCashCounted ?? 0,
+          tally: data.cashout.tally ?? 0,
+          notes: data.cashout.notes ?? '',
+          saved: true,
+        });
+        setCashoutSaved(true);
+      } else {
+        const openingFloat = data.previousClosingFloat ?? 0;
+        const cardSales = currentStats.cardTotal;
+        const cashSales = currentStats.cashTotal;
+        const closingFloat = 0;
+        const actualCashCounted = 0;
+        const cashToBank = openingFloat + cashSales - closingFloat;
+        const tally = actualCashCounted - (openingFloat + cashSales);
+        setCashout({
+          openingFloat,
+          cardSales,
+          cashSales,
+          closingFloat,
+          cashToBank,
+          actualCashCounted,
+          tally,
+          notes: '',
+          saved: false,
+        });
+        setCashoutSaved(false);
+      }
+    } catch {
+      // non-critical, silently ignore
+    } finally {
+      setCashoutLoading(false);
+    }
+  }, []);
+
+  const handleCashoutChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    setCashout((prev) => {
+      const updated = { ...prev, [name]: name === 'notes' ? value : Number(value) };
+      const cashToBank = updated.openingFloat + updated.cashSales - updated.closingFloat;
+      const tally = updated.actualCashCounted - (updated.openingFloat + updated.cashSales);
+      return { ...updated, cashToBank, tally };
+    });
+  };
+
+  const handleSaveCashout = async () => {
+    setCashoutSaving(true);
+    try {
+      const res = await fetch('/api/cashout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: selectedDate,
+          openingFloat: cashout.openingFloat,
+          cardSales: cashout.cardSales,
+          cashSales: cashout.cashSales,
+          closingFloat: cashout.closingFloat,
+          cashToBank: cashout.cashToBank,
+          actualCashCounted: cashout.actualCashCounted,
+          tally: cashout.tally,
+          notes: cashout.notes,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to save cashout');
+      setCashoutSaved(true);
+      setCashout((prev) => ({ ...prev, saved: true }));
+    } catch (e: any) {
+      alert('Failed to save cashout: ' + e.message);
+    } finally {
+      setCashoutSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    if (authChecked) {
+      const currentStats = computeStats(sales);
+      fetchCashout(selectedDate, currentStats);
+    }
+  }, [authChecked, selectedDate, sales, fetchCashout]);
 
   const stats = computeStats(sales);
   const bestSellers = computeBestSellers(sales);
@@ -643,6 +765,127 @@ export default function Home() {
                       </tbody>
                     </table>
                   </div>
+                )}
+              </div>
+
+              {/* Daily Cashout */}
+              <div className="section-card">
+                <h2 className="section-title">
+                  Daily Cashout
+                  {cashoutSaved && (
+                    <span className="cashout-saved-badge">Saved</span>
+                  )}
+                </h2>
+
+                {cashoutLoading ? (
+                  <p className="empty-text">Loading cashout...</p>
+                ) : (
+                  <>
+                    <div className="cashout-grid">
+                      <div className="form-group">
+                        <label htmlFor="cashout-openingFloat">Opening Float (£)</label>
+                        <input
+                          id="cashout-openingFloat"
+                          name="openingFloat"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={cashout.openingFloat}
+                          onChange={handleCashoutChange}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="cashout-cardSales">Card Sales (£)</label>
+                        <input
+                          id="cashout-cardSales"
+                          name="cardSales"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={cashout.cardSales}
+                          onChange={handleCashoutChange}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="cashout-grid">
+                      <div className="form-group">
+                        <label htmlFor="cashout-cashSales">Cash Sales (£)</label>
+                        <input
+                          id="cashout-cashSales"
+                          name="cashSales"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={cashout.cashSales}
+                          onChange={handleCashoutChange}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="cashout-closingFloat">Closing Float (£)</label>
+                        <input
+                          id="cashout-closingFloat"
+                          name="closingFloat"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={cashout.closingFloat}
+                          onChange={handleCashoutChange}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="cashout-calc">
+                      <span className="cashout-calc-label">Cash to Bank</span>
+                      <span className="cashout-calc-value">{formatCurrency(cashout.cashToBank)}</span>
+                    </div>
+
+                    <div className="cashout-grid">
+                      <div className="form-group">
+                        <label htmlFor="cashout-actualCashCounted">Actual Cash Counted (£)</label>
+                        <input
+                          id="cashout-actualCashCounted"
+                          name="actualCashCounted"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={cashout.actualCashCounted}
+                          onChange={handleCashoutChange}
+                        />
+                      </div>
+                      <div className="cashout-tally-box">
+                        <div className="cashout-tally-label">Tally</div>
+                        {cashout.tally === 0 ? (
+                          <div className="cashout-tally--balanced">&#10003; Balanced</div>
+                        ) : (
+                          <div className="cashout-tally--off">
+                            &#10007; {formatCurrency(Math.abs(cashout.tally))} {cashout.tally > 0 ? 'over' : 'short'}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="form-group" style={{ marginTop: '0.25rem' }}>
+                      <label htmlFor="cashout-notes">Notes (optional)</label>
+                      <textarea
+                        id="cashout-notes"
+                        name="notes"
+                        className="cashout-notes"
+                        placeholder="Any notes for this cashout..."
+                        value={cashout.notes}
+                        onChange={handleCashoutChange}
+                      />
+                    </div>
+
+                    <button
+                      className="btn-primary"
+                      style={{ width: '100%', marginTop: '1rem' }}
+                      onClick={handleSaveCashout}
+                      disabled={cashoutSaving}
+                    >
+                      {cashoutSaving ? 'Saving...' : cashoutSaved ? 'Update Cashout' : 'Save Cashout'}
+                    </button>
+                  </>
                 )}
               </div>
             </>

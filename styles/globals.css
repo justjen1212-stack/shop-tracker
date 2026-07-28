@@ -752,6 +752,99 @@ body {
   cursor: not-allowed;
 }
 
+/* ========== Daily Cashout ========== */
+.cashout-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.cashout-calc {
+  background: #f5e6d0;
+  border: 1.5px solid #c49a6c;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.cashout-calc-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #7d4e2d;
+}
+
+.cashout-calc-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #7d4e2d;
+}
+
+.cashout-tally-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.2rem;
+}
+
+.cashout-tally-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9b7d5e;
+  margin-bottom: 0.15rem;
+}
+
+.cashout-tally--balanced {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #4a7c59;
+}
+
+.cashout-tally--off {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #b91c1c;
+}
+
+.cashout-notes {
+  width: 100%;
+  border: 1.5px solid #d9c4a8;
+  border-radius: 8px;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.9rem;
+  color: #3d2b1f;
+  background: #fff;
+  resize: vertical;
+  min-height: 72px;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.cashout-notes:focus {
+  outline: none;
+  border-color: #7d4e2d;
+  box-shadow: 0 0 0 3px rgba(125, 78, 45, 0.15);
+}
+
+.cashout-notes::placeholder {
+  color: #9b7d5e;
+}
+
+.cashout-saved-badge {
+  background: #d1fae5;
+  color: #065f46;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
 /* ========== Responsive ========== */
 @media (max-width: 900px) {
   .stats-grid {
@@ -785,6 +878,10 @@ body {
   }
 
   .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .cashout-grid {
     grid-template-columns: 1fr;
   }
 
