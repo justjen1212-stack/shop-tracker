@@ -580,6 +580,24 @@ body {
   cursor: not-allowed;
 }
 
+.btn-refund {
+  background: transparent;
+  color: #c05621;
+  border: 1.5px solid #f6ad55;
+  border-radius: 6px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.btn-refund:hover:not(:disabled) {
+  background: #fff5eb;
+  border-color: #c05621;
+}
+
 /* ========== Modal ========== */
 .modal-overlay {
   position: fixed;
@@ -938,6 +956,77 @@ body {
 
 .cashout-notes::placeholder {
   color: #9b7d5e;
+}
+
+/* ========== Refund Styles ========== */
+.tr--refund {
+  background: #fff5f5 !important;
+}
+
+.tr--refund:hover {
+  background: #fef2f2 !important;
+}
+
+.refund-badge {
+  display: inline-block;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+
+.total-negative {
+  font-weight: 700;
+  color: #b91c1c;
+}
+
+.refund-summary {
+  background: #fff5f5;
+  border: 1.5px solid #fecaca;
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.refund-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.88rem;
+}
+
+.refund-summary-label {
+  color: #9b7d5e;
+  font-weight: 500;
+}
+
+.refund-summary-value {
+  font-weight: 700;
+  color: #3d2b1f;
+}
+
+.refund-total-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fef2f2;
+  border: 1.5px solid #fca5a5;
+  border-radius: 8px;
+  padding: 0.65rem 1rem;
+}
+
+.refund-total-amount {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #b91c1c;
 }
 
 .cashout-saved-badge {

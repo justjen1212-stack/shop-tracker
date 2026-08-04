@@ -33,6 +33,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             timestamp: data.timestamp?.toDate?.()?.toISOString() ?? null,
             date: data.date,
             category: data.category ?? 'Other',
+            type: data.type ?? 'sale',
           };
         });
 
@@ -67,6 +68,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           timestamp: data.timestamp?.toDate?.()?.toISOString() ?? null,
           date: data.date,
           category: data.category ?? 'Other',
+          type: data.type ?? 'sale',
         };
       });
 
@@ -80,9 +82,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'POST') {
     const body = req.body as Omit<Sale, 'id' | 'timestamp'>;
 
-    const { productName, quantity, pricePerUnit, total, paymentType, staffName, date, category } = body;
+    const { productName, quantity, pricePerUnit, total, paymentType, staffName, date, category, type } = body;
 
-    if (!productName || !quantity || !pricePerUnit || !total || !paymentType || !staffName || !date) {
+    if (!productName || !quantity || !pricePerUnit || !paymentType || !staffName || !date) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
@@ -96,6 +98,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         staffName,
         date,
         category: category ?? 'Other',
+        type: type ?? 'sale',
         timestamp: FieldValue.serverTimestamp(),
       });
 

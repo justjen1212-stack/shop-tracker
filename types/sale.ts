@@ -9,6 +9,7 @@ export interface Sale {
   timestamp: any; // Firestore Timestamp
   date: string; // YYYY-MM-DD
   category: string;
+  type?: 'sale' | 'refund';
 }
 
 export interface SaleFormData {

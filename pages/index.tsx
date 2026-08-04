@@ -172,6 +172,12 @@ export default function Home() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
 
+  const [refundModalOpen, setRefundModalOpen] = useState(false);
+  const [refundingSale, setRefundingSale] = useState<Sale | null>(null);
+  const [refundQty, setRefundQty] = useState(1);
+  const [refundSubmitting, setRefundSubmitting] = useState(false);
+  const [refundError, setRefundError] = useState<string | null>(null);
+
   // Persistent staff name (stored in localStorage, survives page refresh)
   const [currentStaff, setCurrentStaff] = useState<string>('');
   const [editingStaff, setEditingStaff] = useState<boolean>(false);
@@ -485,6 +491,51 @@ export default function Home() {
       alert(e.message);
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const openRefundModal = (sale: Sale) => {
+    setRefundingSale(sale);
+    setRefundQty(1);
+    setRefundError(null);
+    setRefundModalOpen(true);
+  };
+
+  const closeRefundModal = () => {
+    setRefundModalOpen(false);
+    setRefundingSale(null);
+    setRefundError(null);
+  };
+
+  const handleRefundSubmit = async () => {
+    if (!refundingSale) return;
+    setRefundError(null);
+    setRefundSubmitting(true);
+    try {
+      const body = {
+        productName: refundingSale.productName,
+        quantity: refundQty,
+        pricePerUnit: refundingSale.pricePerUnit,
+        total: -(refundQty * refundingSale.pricePerUnit),
+        paymentType: refundingSale.paymentType,
+        staffName: currentStaff || refundingSale.staffName,
+        date: selectedDate,
+        category: refundingSale.category || 'Other',
+        type: 'refund',
+      };
+      const res = await fetch('/api/sales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to process refund');
+      await fetchSales(selectedDate);
+      closeRefundModal();
+    } catch (e: any) {
+      setRefundError(e.message);
+    } finally {
+      setRefundSubmitting(false);
     }
   };
 
@@ -853,13 +904,20 @@ export default function Home() {
                       </thead>
                       <tbody>
                         {sales.map((sale) => (
-                          <tr key={sale.id}>
+                          <tr key={sale.id} className={sale.type === 'refund' ? 'tr--refund' : ''}>
                             <td className="time-cell">{formatTime(sale.timestamp)}</td>
-                            <td className="product-name">{sale.productName}</td>
+                            <td className="product-name">
+                              {sale.productName}
+                              {sale.type === 'refund' && (
+                                <span className="refund-badge">Refund</span>
+                              )}
+                            </td>
                             <td>{sale.category || 'Other'}</td>
                             <td>{sale.quantity}</td>
                             <td>{formatCurrency(sale.pricePerUnit)}</td>
-                            <td className="revenue">{formatCurrency(sale.total)}</td>
+                            <td className={sale.type === 'refund' ? 'total-negative' : 'revenue'}>
+                              {formatCurrency(sale.total)}
+                            </td>
                             <td>
                               <span className={`payment-badge payment-badge--${sale.paymentType}`}>
                                 {PAYMENT_LABELS[sale.paymentType]}
@@ -868,12 +926,22 @@ export default function Home() {
                             <td>{sale.staffName}</td>
                             <td>
                               <div style={{ display: 'flex', gap: '0.4rem' }}>
-                                <button
-                                  className="btn-edit"
-                                  onClick={() => openEditModal(sale)}
-                                >
-                                  Edit
-                                </button>
+                                {sale.type !== 'refund' && (
+                                  <>
+                                    <button
+                                      className="btn-edit"
+                                      onClick={() => openEditModal(sale)}
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      className="btn-refund"
+                                      onClick={() => openRefundModal(sale)}
+                                    >
+                                      Refund
+                                    </button>
+                                  </>
+                                )}
                                 <button
                                   className="btn-delete"
                                   onClick={() => handleDelete(sale.id!)}
@@ -1139,6 +1207,84 @@ export default function Home() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Refund Modal */}
+      {refundModalOpen && refundingSale && (
+        <div className="modal-overlay" onClick={closeRefundModal}>
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="refund-modal-title"
+          >
+            <div className="modal-header">
+              <h2 id="refund-modal-title" className="modal-title">Process Refund</h2>
+              <button className="modal-close" onClick={closeRefundModal} aria-label="Close">
+                ✕
+              </button>
+            </div>
+
+            <div className="sale-form">
+              {refundError && (
+                <div className="form-error">{refundError}</div>
+              )}
+
+              <div className="refund-summary">
+                <div className="refund-summary-row">
+                  <span className="refund-summary-label">Product</span>
+                  <span className="refund-summary-value">{refundingSale.productName}</span>
+                </div>
+                <div className="refund-summary-row">
+                  <span className="refund-summary-label">Unit Price</span>
+                  <span className="refund-summary-value">{formatCurrency(refundingSale.pricePerUnit)}</span>
+                </div>
+                <div className="refund-summary-row">
+                  <span className="refund-summary-label">Payment</span>
+                  <span className="refund-summary-value">{PAYMENT_LABELS[refundingSale.paymentType]}</span>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="refund-qty">Quantity to Refund</label>
+                <input
+                  id="refund-qty"
+                  type="number"
+                  min="1"
+                  max={refundingSale.quantity}
+                  step="1"
+                  value={refundQty}
+                  onChange={(e) => setRefundQty(Math.min(Number(e.target.value), refundingSale!.quantity))}
+                />
+                <span style={{ fontSize: '0.78rem', color: '#9b7d5e' }}>
+                  Max: {refundingSale.quantity} (original qty)
+                </span>
+              </div>
+
+              <div className="refund-total-preview">
+                <span className="total-label">Refund Amount</span>
+                <span className="refund-total-amount">
+                  -{formatCurrency(refundQty * refundingSale.pricePerUnit)}
+                </span>
+              </div>
+
+              <div className="form-actions">
+                <button className="btn-secondary" onClick={closeRefundModal} disabled={refundSubmitting}>
+                  Cancel
+                </button>
+                <button
+                  className="btn-delete"
+                  style={{ padding: '0.55rem 1.2rem', fontSize: '0.9rem' }}
+                  onClick={handleRefundSubmit}
+                  disabled={refundSubmitting || refundQty < 1}
+                >
+                  {refundSubmitting ? 'Processing...' : 'Confirm Refund'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
