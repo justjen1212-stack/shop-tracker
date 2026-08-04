@@ -117,7 +117,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const body = req.body as Omit<Sale, 'id' | 'timestamp'>;
-    const { productName, quantity, pricePerUnit, total, paymentType, staffName, date, category } = body;
+    const { productName, quantity, pricePerUnit, total, paymentType, staffName, date, category, type } = body;
 
     if (!productName || !quantity || !pricePerUnit || !total || !paymentType || !staffName || !date) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -133,6 +133,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         staffName,
         date,
         category: category ?? 'Other',
+        ...(type ? { type } : {}),
       });
 
       return res.status(200).json({ success: true });
