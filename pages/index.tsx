@@ -13,6 +13,10 @@ function normalizeProductKey(name: string): string {
   return n;
 }
 
+function toTitleCase(str: string): string {
+  return str.trim().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function todayString(): string {
   const d = new Date();
   const yyyy = d.getFullYear();
@@ -81,7 +85,7 @@ function computeBestSellers(sales: Sale[]): BestSeller[] {
       existing.unitsSold += sale.quantity;
     } else {
       map.set(key, {
-        productName: sale.productName,
+        productName: toTitleCase(sale.productName),
         totalRevenue: sale.total,
         unitsSold: sale.quantity,
       });
