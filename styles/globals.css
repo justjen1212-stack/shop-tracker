@@ -145,6 +145,34 @@ body {
   letter-spacing: 0.02em;
 }
 
+/* ========== Product Search ========== */
+.search-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.search-input {
+  flex: 1;
+  border: 1.5px solid #c9a96e;
+  border-radius: 8px;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.95rem;
+  color: #3d2b1f;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #7d4e2d;
+  box-shadow: 0 0 0 3px rgba(125, 78, 45, 0.15);
+}
+
+.search-input::placeholder {
+  color: #9b7d5e;
+}
+
 /* ========== Staff Row ========== */
 .staff-row {
   margin-bottom: 1.25rem;
