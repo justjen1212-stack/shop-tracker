@@ -29,8 +29,9 @@ body {
 .header {
   background-color: #b8845a;
   background-image: url('/wood-bg.png');
-  background-repeat: repeat;
-  background-size: 600px auto;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
   color: #fff;
   padding: 0 1.5rem;
   box-shadow: 0 2px 8px rgba(61, 43, 31, 0.35);
@@ -67,14 +68,14 @@ body {
 .header-logo {
   height: 36px;
   width: auto;
-  filter: invert(1) brightness(2);
+  filter: none;
   display: block;
 }
 
 .login-logo {
   height: 48px;
   width: auto;
-  filter: invert(1) brightness(2);
+  filter: none;
   display: block;
   margin: 0 auto 0.5rem;
 }
@@ -142,6 +143,75 @@ body {
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
   letter-spacing: 0.02em;
+}
+
+/* ========== Staff Row ========== */
+.staff-row {
+  margin-bottom: 1.25rem;
+}
+
+.staff-display,
+.staff-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.staff-label {
+  font-size: 0.9rem;
+  color: #8a7f78;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.staff-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #3d2b1f;
+}
+
+.staff-change-btn {
+  background: none;
+  border: none;
+  color: #7d4e2d;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.staff-change-btn:hover {
+  color: #5c3820;
+}
+
+.staff-input {
+  border: 1.5px solid #c9a96e;
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.9rem;
+  color: #3d2b1f;
+  background: #fff;
+  transition: border-color 0.15s;
+  width: 180px;
+}
+
+.staff-input:focus {
+  outline: none;
+  border-color: #7d4e2d;
+  box-shadow: 0 0 0 3px rgba(125, 78, 45, 0.15);
+}
+
+/* ========== Form Success ========== */
+.form-success {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+  border-radius: 8px;
+  padding: 0.7rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 /* ========== Error Banner ========== */
@@ -659,8 +729,9 @@ body {
 .login-header {
   background-color: #b8845a;
   background-image: url('/wood-bg.png');
-  background-repeat: repeat;
-  background-size: 600px auto;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
   padding: 2rem 2rem 1.75rem;
   text-align: center;
   border-bottom: 3px solid #7d4e2d;

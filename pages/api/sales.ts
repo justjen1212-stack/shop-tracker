@@ -3,6 +3,10 @@ import { adminDb } from '../../lib/firebaseAdmin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { Sale } from '../../types/sale';
 
+function toTitleCase(str: string): string {
+  return str.trim().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
     const { date, from, to } = req.query;
@@ -84,7 +88,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     try {
       const docRef = await adminDb.collection('shop_sales').add({
-        productName,
+        productName: toTitleCase(productName),
         quantity: Number(quantity),
         pricePerUnit: Number(pricePerUnit),
         total: Number(total),
@@ -118,7 +122,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     try {
       await adminDb.collection('shop_sales').doc(id).update({
-        productName,
+        productName: toTitleCase(productName),
         quantity: Number(quantity),
         pricePerUnit: Number(pricePerUnit),
         total: Number(total),

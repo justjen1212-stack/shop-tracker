@@ -3,6 +3,16 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { Sale, SaleFormData, Product } from '../types/sale';
 
+// Groups "hat", "Hat", "hats", "Hats" under the same key for stats/best sellers
+function normalizeProductKey(name: string): string {
+  let n = name.trim().toLowerCase();
+  // Remove trailing 's' for plurals — skip words ending in 'ss' (e.g. "glass", "dress")
+  if (n.length > 3 && n.endsWith('s') && !n.endsWith('ss')) {
+    n = n.slice(0, -1);
+  }
+  return n;
+}
+
 function todayString(): string {
   const d = new Date();
   const yyyy = d.getFullYear();
@@ -11,37 +21,6 @@ function todayString(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function getWeekRange(date: string): { from: string; to: string } {
-  const d = new Date(date);
-  const day = d.getDay(); // 0=Sun
-  const diffToMon = (day === 0 ? -6 : 1 - day);
-  const mon = new Date(d); mon.setDate(d.getDate() + diffToMon);
-  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-  const fmt = (x: Date) => x.toISOString().slice(0, 10);
-  return { from: fmt(mon), to: fmt(sun) };
-}
-
-function getMonthRange(date: string): { from: string; to: string } {
-  const [y, m] = date.split('-').map(Number);
-  const last = new Date(y, m, 0).getDate();
-  return { from: `${date.slice(0, 7)}-01`, to: `${date.slice(0, 7)}-${String(last).padStart(2, '0')}` };
-}
-
-function getQuarterRange(date: string): { from: string; to: string } {
-  const [y, m] = date.split('-').map(Number);
-  const q = Math.floor((m - 1) / 3);
-  const fromMonth = String(q * 3 + 1).padStart(2, '0');
-  const toMonth = String(q * 3 + 3).padStart(2, '00');
-  const lastDay = new Date(y, q * 3 + 3, 0).getDate();
-  return { from: `${y}-${fromMonth}-01`, to: `${y}-${toMonth}-${lastDay}` };
-}
-
-function formatDateRange(from: string, to: string): string {
-  const f = new Date(from);
-  const t = new Date(to);
-  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
-  return `${f.toLocaleDateString('en-GB', opts)} – ${t.toLocaleDateString('en-GB', opts)}`;
-}
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(amount);
@@ -95,12 +74,13 @@ function computeStats(sales: Sale[]): Stats {
 function computeBestSellers(sales: Sale[]): BestSeller[] {
   const map = new Map<string, BestSeller>();
   for (const sale of sales) {
-    const existing = map.get(sale.productName);
+    const key = normalizeProductKey(sale.productName);
+    const existing = map.get(key);
     if (existing) {
       existing.totalRevenue += sale.total;
       existing.unitsSold += sale.quantity;
     } else {
-      map.set(sale.productName, {
+      map.set(key, {
         productName: sale.productName,
         totalRevenue: sale.total,
         unitsSold: sale.quantity,
@@ -155,23 +135,6 @@ function computeBestCategory(sales: Sale[]): BestCategory | null {
   return best;
 }
 
-function computeTop10(sales: Sale[]): { byQty: BestSeller[]; byValue: BestSeller[] } {
-  const map = new Map<string, BestSeller>();
-  for (const sale of sales) {
-    const existing = map.get(sale.productName);
-    if (existing) {
-      existing.totalRevenue += sale.total;
-      existing.unitsSold += sale.quantity;
-    } else {
-      map.set(sale.productName, { productName: sale.productName, totalRevenue: sale.total, unitsSold: sale.quantity });
-    }
-  }
-  const all = Array.from(map.values());
-  return {
-    byQty: [...all].sort((a, b) => b.unitsSold - a.unitsSold).slice(0, 10),
-    byValue: [...all].sort((a, b) => b.totalRevenue - a.totalRevenue).slice(0, 10),
-  };
-}
 
 const PAYMENT_LABELS: Record<string, string> = {
   cash: 'Cash',
@@ -201,8 +164,14 @@ export default function Home() {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  const [formSuccess, setFormSuccess] = useState<boolean>(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
+
+  // Persistent staff name (stored in localStorage, survives page refresh)
+  const [currentStaff, setCurrentStaff] = useState<string>('');
+  const [editingStaff, setEditingStaff] = useState<boolean>(false);
+  const [staffInput, setStaffInput] = useState<string>('');
 
   const [products, setProducts] = useState<Product[]>([]);
   const [productsModalOpen, setProductsModalOpen] = useState<boolean>(false);
@@ -241,10 +210,6 @@ export default function Home() {
   const [cashoutSaving, setCashoutSaving] = useState(false);
   const [cashoutSaved, setCashoutSaved] = useState(false);
 
-  // Best sellers period state
-  const [periodTab, setPeriodTab] = useState<'week' | 'month' | 'quarter'>('week');
-  const [periodSales, setPeriodSales] = useState<{ week: Sale[]; month: Sale[]; quarter: Sale[] }>({ week: [], month: [], quarter: [] });
-  const [periodLoading, setPeriodLoading] = useState(false);
 
   // Auth check on page load
   useEffect(() => {
@@ -256,6 +221,12 @@ export default function Home() {
       setAuthChecked(true);
     }
   }, [router]);
+
+  // Load staff name from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('active_staff');
+    if (saved) setCurrentStaff(saved);
+  }, []);
 
   const fetchSales = useCallback(async (date: string) => {
     setLoading(true);
@@ -286,48 +257,24 @@ export default function Home() {
     }
   }, []);
 
-  const fetchPeriodSales = useCallback(async (date: string) => {
-    setPeriodLoading(true);
-    try {
-      const weekRange = getWeekRange(date);
-      const monthRange = getMonthRange(date);
-      const quarterRange = getQuarterRange(date);
-
-      const [weekRes, monthRes, quarterRes] = await Promise.all([
-        fetch(`/api/sales?from=${weekRange.from}&to=${weekRange.to}`),
-        fetch(`/api/sales?from=${monthRange.from}&to=${monthRange.to}`),
-        fetch(`/api/sales?from=${quarterRange.from}&to=${quarterRange.to}`),
-      ]);
-
-      const [weekData, monthData, quarterData] = await Promise.all([
-        weekRes.json(),
-        monthRes.json(),
-        quarterRes.json(),
-      ]);
-
-      setPeriodSales({
-        week: weekRes.ok ? (weekData.sales as Sale[]) : [],
-        month: monthRes.ok ? (monthData.sales as Sale[]) : [],
-        quarter: quarterRes.ok ? (quarterData.sales as Sale[]) : [],
-      });
-    } catch {
-      // non-critical, silently ignore
-    } finally {
-      setPeriodLoading(false);
-    }
-  }, []);
 
   useEffect(() => {
     if (authChecked) {
       fetchSales(selectedDate);
       fetchProducts();
-      fetchPeriodSales(selectedDate);
     }
-  }, [selectedDate, fetchSales, fetchProducts, fetchPeriodSales, authChecked]);
+  }, [selectedDate, fetchSales, fetchProducts, authChecked]);
 
   const handleLogout = async () => {
     await fetch('/api/auth', { method: 'DELETE' });
     router.push('/login');
+  };
+
+  const handleSetStaff = () => {
+    const name = staffInput.trim();
+    localStorage.setItem('active_staff', name);
+    setCurrentStaff(name);
+    setEditingStaff(false);
   };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -338,6 +285,7 @@ export default function Home() {
     setFormData(emptyForm);
     setEditingSale(null);
     setFormError(null);
+    setFormSuccess(false);
     setModalOpen(true);
   };
 
@@ -358,6 +306,7 @@ export default function Home() {
   const closeModal = () => {
     setModalOpen(false);
     setFormError(null);
+    setFormSuccess(false);
     setEditingSale(null);
   };
 
@@ -472,20 +421,21 @@ export default function Home() {
       setFormError('Price per unit must be greater than 0.');
       return;
     }
-    if (!formData.staffName.trim()) {
-      setFormError('Staff name is required.');
+    if (!currentStaff.trim()) {
+      setFormError('Please set the staff name at the top of the page before adding a sale.');
       return;
     }
 
     setSubmitting(true);
     try {
+      const staffName = editingSale ? editingSale.staffName : currentStaff.trim();
       const body: Omit<Sale, 'id' | 'timestamp'> = {
         productName: formData.productName.trim(),
         quantity: formData.quantity,
         pricePerUnit: formData.pricePerUnit,
         total: calculatedTotal,
         paymentType: formData.paymentType,
-        staffName: formData.staffName.trim(),
+        staffName,
         date: selectedDate,
         category: formData.category,
       };
@@ -501,8 +451,17 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? (editingSale ? 'Failed to update sale' : 'Failed to add sale'));
 
-      closeModal();
       await fetchSales(selectedDate);
+
+      if (editingSale) {
+        closeModal();
+      } else {
+        // Keep modal open for next sale — reset form and show success flash
+        setFormData(emptyForm);
+        setFormError(null);
+        setFormSuccess(true);
+        setTimeout(() => setFormSuccess(false), 2500);
+      }
     } catch (e: any) {
       setFormError(e.message);
     } finally {
@@ -653,6 +612,9 @@ export default function Home() {
               <button className="btn-secondary" onClick={openProductsModal}>
                 Manage Products
               </button>
+              <button className="btn-secondary" onClick={() => router.push('/best-sellers')}>
+                Best Sellers
+              </button>
               <button className="btn-primary" onClick={openModal}>
                 + Add Sale
               </button>
@@ -678,6 +640,53 @@ export default function Home() {
             />
             {selectedDate === todayString() && (
               <span className="badge-today">Today</span>
+            )}
+          </div>
+
+          {/* Staff on Duty */}
+          <div className="staff-row">
+            {editingStaff ? (
+              <div className="staff-edit">
+                <span className="staff-label">Staff on duty:</span>
+                <input
+                  className="staff-input"
+                  value={staffInput}
+                  onChange={(e) => setStaffInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && staffInput.trim()) handleSetStaff(); }}
+                  placeholder="Enter name..."
+                  autoFocus
+                />
+                <button className="btn-primary" onClick={handleSetStaff} disabled={!staffInput.trim()}>
+                  Set
+                </button>
+                {currentStaff && (
+                  <button className="btn-secondary" onClick={() => setEditingStaff(false)}>
+                    Cancel
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="staff-display">
+                <span className="staff-label">Staff on duty:</span>
+                {currentStaff ? (
+                  <>
+                    <span className="staff-name">{currentStaff}</span>
+                    <button
+                      className="staff-change-btn"
+                      onClick={() => { setStaffInput(currentStaff); setEditingStaff(true); }}
+                    >
+                      Change
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="btn-secondary"
+                    onClick={() => { setStaffInput(''); setEditingStaff(true); }}
+                  >
+                    Set staff name
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
@@ -996,102 +1005,6 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Best Sellers — Period Reporting */}
-              <div className="section-card">
-                <h2 className="section-title">Best Sellers</h2>
-
-                {/* Tab bar */}
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                  <button
-                    className={periodTab === 'week' ? 'btn-primary' : 'btn-secondary'}
-                    onClick={() => setPeriodTab('week')}
-                  >
-                    This Week
-                  </button>
-                  <button
-                    className={periodTab === 'month' ? 'btn-primary' : 'btn-secondary'}
-                    onClick={() => setPeriodTab('month')}
-                  >
-                    This Month
-                  </button>
-                  <button
-                    className={periodTab === 'quarter' ? 'btn-primary' : 'btn-secondary'}
-                    onClick={() => setPeriodTab('quarter')}
-                  >
-                    This Quarter
-                  </button>
-                </div>
-
-                {/* Date range label */}
-                <p style={{ fontSize: '0.82rem', color: '#9b7d5e', marginBottom: '1.25rem' }}>
-                  {periodTab === 'week' && formatDateRange(getWeekRange(selectedDate).from, getWeekRange(selectedDate).to)}
-                  {periodTab === 'month' && formatDateRange(getMonthRange(selectedDate).from, getMonthRange(selectedDate).to)}
-                  {periodTab === 'quarter' && formatDateRange(getQuarterRange(selectedDate).from, getQuarterRange(selectedDate).to)}
-                </p>
-
-                {periodLoading ? (
-                  <p className="empty-text">Loading...</p>
-                ) : (() => {
-                  const activeSales = periodSales[periodTab];
-                  if (activeSales.length === 0) {
-                    return <p className="empty-text">No sales in this period.</p>;
-                  }
-                  const { byQty, byValue } = computeTop10(activeSales);
-                  return (
-                    <div className="two-col">
-                      {/* Top 10 by Units Sold */}
-                      <div>
-                        <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#3d2b1f', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          Top 10 by Units Sold
-                        </h3>
-                        <table className="table">
-                          <thead>
-                            <tr>
-                              <th>Rank</th>
-                              <th>Product</th>
-                              <th>Units</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {byQty.map((item, idx) => (
-                              <tr key={item.productName}>
-                                <td className="rank">{idx + 1}</td>
-                                <td className="product-name">{item.productName}</td>
-                                <td>{item.unitsSold}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Top 10 by Value */}
-                      <div>
-                        <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#3d2b1f', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          Top 10 by Value
-                        </h3>
-                        <table className="table">
-                          <thead>
-                            <tr>
-                              <th>Rank</th>
-                              <th>Product</th>
-                              <th>Revenue</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {byValue.map((item, idx) => (
-                              <tr key={item.productName}>
-                                <td className="rank">{idx + 1}</td>
-                                <td className="product-name">{item.productName}</td>
-                                <td className="revenue">{formatCurrency(item.totalRevenue)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
             </>
           )}
         </main>
@@ -1242,6 +1155,9 @@ export default function Home() {
             </div>
 
             <form onSubmit={handleSubmit} className="sale-form">
+              {formSuccess && (
+                <div className="form-success">Sale added! Add another below.</div>
+              )}
               {formError && (
                 <div className="form-error">{formError}</div>
               )}
@@ -1343,20 +1259,6 @@ export default function Home() {
                   <option value="card">Card</option>
                   <option value="online">Online</option>
                 </select>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="staffName">Staff Name</label>
-                <input
-                  id="staffName"
-                  name="staffName"
-                  type="text"
-                  placeholder="e.g. Alice"
-                  value={formData.staffName}
-                  onChange={handleFormChange}
-                  autoComplete="off"
-                  required
-                />
               </div>
 
               <div className="form-actions">
