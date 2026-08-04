@@ -673,6 +673,9 @@ export default function Home() {
               <button className="btn-secondary" onClick={() => router.push('/search')}>
                 Search
               </button>
+              <button className="btn-secondary" onClick={() => router.push('/refunds')}>
+                Refunds
+              </button>
               <button className="btn-primary" onClick={openModal}>
                 + Add Sale
               </button>
