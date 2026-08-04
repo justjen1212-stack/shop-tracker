@@ -67,6 +67,27 @@ function toTitleCase(str: string): string {
   return str.trim().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+interface CategoryStat {
+  category: string;
+  unitsSold: number;
+  totalRevenue: number;
+}
+
+function computeCategoryStats(sales: Sale[]): CategoryStat[] {
+  const map = new Map<string, CategoryStat>();
+  for (const sale of sales) {
+    const cat = sale.category || 'Other';
+    const existing = map.get(cat);
+    if (existing) {
+      existing.unitsSold += sale.quantity;
+      existing.totalRevenue += sale.total;
+    } else {
+      map.set(cat, { category: cat, unitsSold: sale.quantity, totalRevenue: sale.total });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => b.totalRevenue - a.totalRevenue);
+}
+
 function computeTop10(sales: Sale[]): { byQty: BestSeller[]; byValue: BestSeller[] } {
   const map = new Map<string, BestSeller>();
   for (const sale of sales) {
@@ -147,6 +168,7 @@ export default function BestSellers() {
   if (!authChecked) return null;
 
   const { byQty, byValue } = computeTop10(sales);
+  const categoryStats = computeCategoryStats(sales);
   const range = getActiveRange();
 
   return (
@@ -255,6 +277,33 @@ export default function BestSellers() {
               </div>
             )}
           </div>
+
+          {/* Category Breakdown */}
+          {sales.length > 0 && categoryStats.length > 0 && (
+            <div className="section-card">
+              <h2 className="section-title">Sales by Category</h2>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Category</th>
+                    <th>Units Sold</th>
+                    <th>Revenue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categoryStats.map((cat, idx) => (
+                    <tr key={cat.category}>
+                      <td className="rank">{idx + 1}</td>
+                      <td className="product-name">{cat.category}</td>
+                      <td>{cat.unitsSold}</td>
+                      <td className="revenue">{formatCurrency(cat.totalRevenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </main>
       </div>
     </>
