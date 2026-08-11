@@ -34,6 +34,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             date: data.date,
             category: data.category ?? 'Other',
             type: data.type ?? 'sale',
+            ...(data.refundReason ? { refundReason: data.refundReason } : {}),
+            ...(data.refundAuthorizedBy ? { refundAuthorizedBy: data.refundAuthorizedBy } : {}),
+            ...(data.refundCustomerName ? { refundCustomerName: data.refundCustomerName } : {}),
+            ...(data.refundCustomerAddress ? { refundCustomerAddress: data.refundCustomerAddress } : {}),
+            ...(data.refundCustomerPhone ? { refundCustomerPhone: data.refundCustomerPhone } : {}),
           };
         });
 
@@ -69,6 +74,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           date: data.date,
           category: data.category ?? 'Other',
           type: data.type ?? 'sale',
+          ...(data.refundReason ? { refundReason: data.refundReason } : {}),
+          ...(data.refundAuthorizedBy ? { refundAuthorizedBy: data.refundAuthorizedBy } : {}),
+          ...(data.refundCustomerName ? { refundCustomerName: data.refundCustomerName } : {}),
+          ...(data.refundCustomerAddress ? { refundCustomerAddress: data.refundCustomerAddress } : {}),
+          ...(data.refundCustomerPhone ? { refundCustomerPhone: data.refundCustomerPhone } : {}),
         };
       });
 
@@ -82,10 +92,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'POST') {
     const body = req.body as Omit<Sale, 'id' | 'timestamp'>;
 
-    const { productName, quantity, pricePerUnit, total, paymentType, staffName, date, category, type } = body;
+    const { productName, quantity, pricePerUnit, total, paymentType, staffName, date, category, type,
+      refundReason, refundAuthorizedBy, refundCustomerName, refundCustomerAddress, refundCustomerPhone } = body;
 
     if (!productName || !quantity || !pricePerUnit || !paymentType || !staffName || !date) {
       return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    if (type === 'refund') {
+      if (!refundReason?.trim() || !refundAuthorizedBy?.trim()) {
+        return res.status(400).json({ error: 'Refund reason and authorized by are required' });
+      }
     }
 
     try {
@@ -100,6 +117,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         category: category ?? 'Other',
         type: type ?? 'sale',
         timestamp: FieldValue.serverTimestamp(),
+        ...(refundReason ? { refundReason: refundReason.trim() } : {}),
+        ...(refundAuthorizedBy ? { refundAuthorizedBy: refundAuthorizedBy.trim() } : {}),
+        ...(refundCustomerName ? { refundCustomerName: refundCustomerName.trim() } : {}),
+        ...(refundCustomerAddress ? { refundCustomerAddress: refundCustomerAddress.trim() } : {}),
+        ...(refundCustomerPhone ? { refundCustomerPhone: refundCustomerPhone.trim() } : {}),
       });
 
       return res.status(201).json({ id: docRef.id });
@@ -117,10 +139,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const body = req.body as Omit<Sale, 'id' | 'timestamp'>;
-    const { productName, quantity, pricePerUnit, total, paymentType, staffName, date, category, type } = body;
+    const { productName, quantity, pricePerUnit, total, paymentType, staffName, date, category, type,
+      refundReason, refundAuthorizedBy, refundCustomerName, refundCustomerAddress, refundCustomerPhone } = body;
 
     if (!productName || !quantity || !pricePerUnit || !total || !paymentType || !staffName || !date) {
       return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    if (type === 'refund') {
+      if (!refundReason?.trim() || !refundAuthorizedBy?.trim()) {
+        return res.status(400).json({ error: 'Refund reason and authorized by are required' });
+      }
     }
 
     try {
@@ -134,6 +163,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         date,
         category: category ?? 'Other',
         ...(type ? { type } : {}),
+        ...(refundReason ? { refundReason: refundReason.trim() } : {}),
+        ...(refundAuthorizedBy ? { refundAuthorizedBy: refundAuthorizedBy.trim() } : {}),
+        ...(refundCustomerName !== undefined ? { refundCustomerName: refundCustomerName.trim() } : {}),
+        ...(refundCustomerAddress !== undefined ? { refundCustomerAddress: refundCustomerAddress.trim() } : {}),
+        ...(refundCustomerPhone !== undefined ? { refundCustomerPhone: refundCustomerPhone.trim() } : {}),
       });
 
       return res.status(200).json({ success: true });

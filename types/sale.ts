@@ -10,6 +10,12 @@ export interface Sale {
   date: string; // YYYY-MM-DD
   category: string;
   type?: 'sale' | 'refund';
+  // Refund-specific fields
+  refundReason?: string;        // mandatory when type === 'refund'
+  refundAuthorizedBy?: string;  // mandatory when type === 'refund'
+  refundCustomerName?: string;  // optional
+  refundCustomerAddress?: string; // optional
+  refundCustomerPhone?: string; // optional
 }
 
 export interface SaleFormData {

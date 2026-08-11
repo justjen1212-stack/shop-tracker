@@ -30,6 +30,11 @@ interface ManualRefundForm {
   quantity: number;
   paymentType: 'cash' | 'card' | 'online';
   category: string;
+  refundReason: string;
+  refundAuthorizedBy: string;
+  refundCustomerName: string;
+  refundCustomerAddress: string;
+  refundCustomerPhone: string;
 }
 
 const emptyManualForm: ManualRefundForm = {
@@ -39,6 +44,11 @@ const emptyManualForm: ManualRefundForm = {
   quantity: 1,
   paymentType: 'cash',
   category: 'Other',
+  refundReason: '',
+  refundAuthorizedBy: '',
+  refundCustomerName: '',
+  refundCustomerAddress: '',
+  refundCustomerPhone: '',
 };
 
 export default function RefundsPage() {
@@ -56,6 +66,11 @@ export default function RefundsPage() {
   const [refundModalOpen, setRefundModalOpen] = useState(false);
   const [refundingSale, setRefundingSale] = useState<Sale | null>(null);
   const [refundQty, setRefundQty] = useState(1);
+  const [refundReason, setRefundReason] = useState('');
+  const [refundAuthorizedBy, setRefundAuthorizedBy] = useState('');
+  const [refundCustomerName, setRefundCustomerName] = useState('');
+  const [refundCustomerAddress, setRefundCustomerAddress] = useState('');
+  const [refundCustomerPhone, setRefundCustomerPhone] = useState('');
   const [refundSubmitting, setRefundSubmitting] = useState(false);
   const [refundError, setRefundError] = useState<string | null>(null);
   const [refundSuccess, setRefundSuccess] = useState(false);
@@ -156,6 +171,11 @@ export default function RefundsPage() {
   const openRefundModal = (sale: Sale) => {
     setRefundingSale(sale);
     setRefundQty(1);
+    setRefundReason('');
+    setRefundAuthorizedBy('');
+    setRefundCustomerName('');
+    setRefundCustomerAddress('');
+    setRefundCustomerPhone('');
     setRefundError(null);
     setRefundSuccess(false);
     setRefundModalOpen(true);
@@ -170,6 +190,10 @@ export default function RefundsPage() {
 
   const handleRefundSubmit = async () => {
     if (!refundingSale) return;
+    if (!refundReason.trim() || !refundAuthorizedBy.trim()) {
+      setRefundError('Reason for refund and authorized by are required.');
+      return;
+    }
     setRefundError(null);
     setRefundSubmitting(true);
     try {
@@ -183,6 +207,11 @@ export default function RefundsPage() {
         date: todayString(),
         category: refundingSale.category || 'Other',
         type: 'refund',
+        refundReason: refundReason.trim(),
+        refundAuthorizedBy: refundAuthorizedBy.trim(),
+        ...(refundCustomerName.trim() ? { refundCustomerName: refundCustomerName.trim() } : {}),
+        ...(refundCustomerAddress.trim() ? { refundCustomerAddress: refundCustomerAddress.trim() } : {}),
+        ...(refundCustomerPhone.trim() ? { refundCustomerPhone: refundCustomerPhone.trim() } : {}),
       };
       const res = await fetch('/api/sales', {
         method: 'POST',
@@ -216,6 +245,8 @@ export default function RefundsPage() {
     if (!manualForm.productName.trim()) { setManualError('Product name is required.'); return; }
     if (manualForm.pricePerUnit <= 0) { setManualError('Price must be greater than 0.'); return; }
     if (manualForm.quantity < 1) { setManualError('Quantity must be at least 1.'); return; }
+    if (!manualForm.refundReason.trim()) { setManualError('Reason for refund is required.'); return; }
+    if (!manualForm.refundAuthorizedBy.trim()) { setManualError('Authorized by is required.'); return; }
 
     setManualSubmitting(true);
     try {
@@ -229,6 +260,11 @@ export default function RefundsPage() {
         date: manualForm.date,
         category: manualForm.category,
         type: 'refund',
+        refundReason: manualForm.refundReason.trim(),
+        refundAuthorizedBy: manualForm.refundAuthorizedBy.trim(),
+        ...(manualForm.refundCustomerName.trim() ? { refundCustomerName: manualForm.refundCustomerName.trim() } : {}),
+        ...(manualForm.refundCustomerAddress.trim() ? { refundCustomerAddress: manualForm.refundCustomerAddress.trim() } : {}),
+        ...(manualForm.refundCustomerPhone.trim() ? { refundCustomerPhone: manualForm.refundCustomerPhone.trim() } : {}),
       };
       const res = await fetch('/api/sales', {
         method: 'POST',
@@ -258,6 +294,11 @@ export default function RefundsPage() {
       quantity: refund.quantity,
       paymentType: refund.paymentType,
       category: refund.category || 'Other',
+      refundReason: refund.refundReason || '',
+      refundAuthorizedBy: refund.refundAuthorizedBy || '',
+      refundCustomerName: refund.refundCustomerName || '',
+      refundCustomerAddress: refund.refundCustomerAddress || '',
+      refundCustomerPhone: refund.refundCustomerPhone || '',
     });
     setEditError(null);
   };
@@ -282,6 +323,8 @@ export default function RefundsPage() {
     if (!editForm.productName.trim()) { setEditError('Product name is required.'); return; }
     if (editForm.pricePerUnit <= 0) { setEditError('Price must be greater than 0.'); return; }
     if (editForm.quantity < 1) { setEditError('Quantity must be at least 1.'); return; }
+    if (!editForm.refundReason.trim()) { setEditError('Reason for refund is required.'); return; }
+    if (!editForm.refundAuthorizedBy.trim()) { setEditError('Authorized by is required.'); return; }
 
     setEditSubmitting(true);
     try {
@@ -295,6 +338,11 @@ export default function RefundsPage() {
         date: editForm.date,
         category: editForm.category,
         type: 'refund',
+        refundReason: editForm.refundReason.trim(),
+        refundAuthorizedBy: editForm.refundAuthorizedBy.trim(),
+        refundCustomerName: editForm.refundCustomerName.trim(),
+        refundCustomerAddress: editForm.refundCustomerAddress.trim(),
+        refundCustomerPhone: editForm.refundCustomerPhone.trim(),
       };
       const res = await fetch(`/api/sales?id=${editingRefund.id}`, {
         method: 'PUT',
@@ -514,6 +562,72 @@ export default function RefundsPage() {
                 </select>
               </div>
 
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="manual-refundReason">Reason for Refund <span style={{ color: '#c0392b' }}>*</span></label>
+                  <input
+                    id="manual-refundReason"
+                    name="refundReason"
+                    type="text"
+                    placeholder="e.g. Damaged item, wrong size..."
+                    value={manualForm.refundReason}
+                    onChange={handleManualChange}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="manual-refundAuthorizedBy">Authorized By <span style={{ color: '#c0392b' }}>*</span></label>
+                  <input
+                    id="manual-refundAuthorizedBy"
+                    name="refundAuthorizedBy"
+                    type="text"
+                    placeholder="Manager name or ID"
+                    value={manualForm.refundAuthorizedBy}
+                    onChange={handleManualChange}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={{ fontSize: '0.82rem', color: '#9b7d5e', margin: '-0.25rem 0 0.5rem' }}>
+                Customer details (optional)
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="manual-refundCustomerName">Customer Name</label>
+                  <input
+                    id="manual-refundCustomerName"
+                    name="refundCustomerName"
+                    type="text"
+                    placeholder="Full name"
+                    value={manualForm.refundCustomerName}
+                    onChange={handleManualChange}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="manual-refundCustomerPhone">Phone Number</label>
+                  <input
+                    id="manual-refundCustomerPhone"
+                    name="refundCustomerPhone"
+                    type="tel"
+                    placeholder="e.g. 07700 900000"
+                    value={manualForm.refundCustomerPhone}
+                    onChange={handleManualChange}
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label htmlFor="manual-refundCustomerAddress">Address</label>
+                <input
+                  id="manual-refundCustomerAddress"
+                  name="refundCustomerAddress"
+                  type="text"
+                  placeholder="Street, city, postcode"
+                  value={manualForm.refundCustomerAddress}
+                  onChange={handleManualChange}
+                />
+              </div>
+
               {manualTotal > 0 && (
                 <div className="refund-total-preview">
                   <span className="total-label">Refund Amount</span>
@@ -556,6 +670,9 @@ export default function RefundsPage() {
                       <th>Refund</th>
                       <th>Payment</th>
                       <th>Staff</th>
+                      <th>Reason</th>
+                      <th>Authorized By</th>
+                      <th>Customer</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -575,6 +692,15 @@ export default function RefundsPage() {
                           </span>
                         </td>
                         <td>{refund.staffName}</td>
+                        <td>{refund.refundReason || '—'}</td>
+                        <td>{refund.refundAuthorizedBy || '—'}</td>
+                        <td>
+                          {refund.refundCustomerName ? (
+                            <span title={[refund.refundCustomerAddress, refund.refundCustomerPhone].filter(Boolean).join(' | ')}>
+                              {refund.refundCustomerName}
+                            </span>
+                          ) : '—'}
+                        </td>
                         <td>
                           <button className="btn-edit" onClick={() => openEditModal(refund)}>
                             Edit
@@ -641,6 +767,60 @@ export default function RefundsPage() {
                   Max: {refundingSale.quantity} (original qty)
                 </span>
               </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Reason for Refund <span style={{ color: '#c0392b' }}>*</span></label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Damaged item, wrong size..."
+                    value={refundReason}
+                    onChange={(e) => setRefundReason(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Authorized By <span style={{ color: '#c0392b' }}>*</span></label>
+                  <input
+                    type="text"
+                    placeholder="Manager name or ID"
+                    value={refundAuthorizedBy}
+                    onChange={(e) => setRefundAuthorizedBy(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ fontSize: '0.82rem', color: '#9b7d5e', margin: '-0.25rem 0 0.5rem' }}>
+                Customer details (optional)
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Customer Name</label>
+                  <input
+                    type="text"
+                    placeholder="Full name"
+                    value={refundCustomerName}
+                    onChange={(e) => setRefundCustomerName(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Phone Number</label>
+                  <input
+                    type="tel"
+                    placeholder="e.g. 07700 900000"
+                    value={refundCustomerPhone}
+                    onChange={(e) => setRefundCustomerPhone(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Address</label>
+                <input
+                  type="text"
+                  placeholder="Street, city, postcode"
+                  value={refundCustomerAddress}
+                  onChange={(e) => setRefundCustomerAddress(e.target.value)}
+                />
+              </div>
+
               <div className="refund-total-preview">
                 <span className="total-label">Refund Amount</span>
                 <span className="refund-total-amount">-{formatCurrency(refundQty * refundingSale.pricePerUnit)}</span>
@@ -762,6 +942,67 @@ export default function RefundsPage() {
                   <option value="card">Card</option>
                   <option value="online">Online</option>
                 </select>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="edit-refundReason">Reason for Refund <span style={{ color: '#c0392b' }}>*</span></label>
+                  <input
+                    id="edit-refundReason"
+                    name="refundReason"
+                    type="text"
+                    value={editForm.refundReason}
+                    onChange={handleEditChange}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="edit-refundAuthorizedBy">Authorized By <span style={{ color: '#c0392b' }}>*</span></label>
+                  <input
+                    id="edit-refundAuthorizedBy"
+                    name="refundAuthorizedBy"
+                    type="text"
+                    value={editForm.refundAuthorizedBy}
+                    onChange={handleEditChange}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={{ fontSize: '0.82rem', color: '#9b7d5e', margin: '-0.25rem 0 0.5rem' }}>
+                Customer details (optional)
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="edit-refundCustomerName">Customer Name</label>
+                  <input
+                    id="edit-refundCustomerName"
+                    name="refundCustomerName"
+                    type="text"
+                    value={editForm.refundCustomerName}
+                    onChange={handleEditChange}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="edit-refundCustomerPhone">Phone Number</label>
+                  <input
+                    id="edit-refundCustomerPhone"
+                    name="refundCustomerPhone"
+                    type="tel"
+                    value={editForm.refundCustomerPhone}
+                    onChange={handleEditChange}
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label htmlFor="edit-refundCustomerAddress">Address</label>
+                <input
+                  id="edit-refundCustomerAddress"
+                  name="refundCustomerAddress"
+                  type="text"
+                  value={editForm.refundCustomerAddress}
+                  onChange={handleEditChange}
+                />
               </div>
 
               {editTotal > 0 && (

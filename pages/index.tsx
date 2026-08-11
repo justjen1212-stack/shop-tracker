@@ -175,8 +175,19 @@ export default function Home() {
   const [refundModalOpen, setRefundModalOpen] = useState(false);
   const [refundingSale, setRefundingSale] = useState<Sale | null>(null);
   const [refundQty, setRefundQty] = useState(1);
+  const [refundReason, setRefundReason] = useState('');
+  const [refundAuthorizedBy, setRefundAuthorizedBy] = useState('');
+  const [refundCustomerName, setRefundCustomerName] = useState('');
+  const [refundCustomerAddress, setRefundCustomerAddress] = useState('');
+  const [refundCustomerPhone, setRefundCustomerPhone] = useState('');
   const [refundSubmitting, setRefundSubmitting] = useState(false);
   const [refundError, setRefundError] = useState<string | null>(null);
+
+  // Period totals
+  const [periodTotals, setPeriodTotals] = useState<{
+    week: number; month: number; quarter: number; year: number;
+    weekLabel: string; monthLabel: string; quarterLabel: string; yearLabel: string;
+  } | null>(null);
 
   // Persistent staff name (stored in localStorage, survives page refresh)
   const [currentStaff, setCurrentStaff] = useState<string>('');
@@ -497,6 +508,11 @@ export default function Home() {
   const openRefundModal = (sale: Sale) => {
     setRefundingSale(sale);
     setRefundQty(1);
+    setRefundReason('');
+    setRefundAuthorizedBy('');
+    setRefundCustomerName('');
+    setRefundCustomerAddress('');
+    setRefundCustomerPhone('');
     setRefundError(null);
     setRefundModalOpen(true);
   };
@@ -509,6 +525,10 @@ export default function Home() {
 
   const handleRefundSubmit = async () => {
     if (!refundingSale) return;
+    if (!refundReason.trim() || !refundAuthorizedBy.trim()) {
+      setRefundError('Reason for refund and authorized by are required.');
+      return;
+    }
     setRefundError(null);
     setRefundSubmitting(true);
     try {
@@ -522,6 +542,11 @@ export default function Home() {
         date: selectedDate,
         category: refundingSale.category || 'Other',
         type: 'refund',
+        refundReason: refundReason.trim(),
+        refundAuthorizedBy: refundAuthorizedBy.trim(),
+        ...(refundCustomerName.trim() ? { refundCustomerName: refundCustomerName.trim() } : {}),
+        ...(refundCustomerAddress.trim() ? { refundCustomerAddress: refundCustomerAddress.trim() } : {}),
+        ...(refundCustomerPhone.trim() ? { refundCustomerPhone: refundCustomerPhone.trim() } : {}),
       };
       const res = await fetch('/api/sales', {
         method: 'POST',
@@ -634,6 +659,63 @@ export default function Home() {
       fetchCashout(selectedDate, currentStats);
     }
   }, [authChecked, selectedDate, sales, fetchCashout]);
+
+  // Fetch period totals once on mount
+  useEffect(() => {
+    if (!authChecked) return;
+    (async () => {
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+      // Week: Monday–Sunday
+      const dow = now.getDay(); // 0=Sun
+      const diffToMon = dow === 0 ? -6 : 1 - dow;
+      const monday = new Date(now); monday.setDate(now.getDate() + diffToMon);
+      const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+
+      // Month
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+      // Quarter
+      const q = Math.floor(now.getMonth() / 3);
+      const qStart = new Date(now.getFullYear(), q * 3, 1);
+      const qEnd = new Date(now.getFullYear(), q * 3 + 3, 0);
+
+      // Year
+      const yearStart = `${now.getFullYear()}-01-01`;
+      const yearEnd = `${now.getFullYear()}-12-31`;
+
+      const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const weekLabel = `${fmt(monday)} – ${fmt(sunday)}`;
+      const monthLabel = `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
+      const quarterLabel = `Q${q + 1} ${now.getFullYear()}`;
+      const yearLabel = `${now.getFullYear()}`;
+
+      try {
+        const [wRes, mRes, qRes, yRes] = await Promise.all([
+          fetch(`/api/sales?from=${fmt(monday)}&to=${fmt(sunday)}`),
+          fetch(`/api/sales?from=${fmt(monthStart)}&to=${fmt(monthEnd)}`),
+          fetch(`/api/sales?from=${fmt(qStart)}&to=${fmt(qEnd)}`),
+          fetch(`/api/sales?from=${yearStart}&to=${yearEnd}`),
+        ]);
+        const [wData, mData, qData, yData] = await Promise.all([wRes.json(), mRes.json(), qRes.json(), yRes.json()]);
+        const total = (data: any) =>
+          ((data.sales ?? []) as Sale[])
+            .filter((s) => s.type !== 'refund')
+            .reduce((sum, s) => sum + s.total, 0);
+        setPeriodTotals({
+          week: total(wData), weekLabel,
+          month: total(mData), monthLabel,
+          quarter: total(qData), quarterLabel,
+          year: total(yData), yearLabel,
+        });
+      } catch {
+        // non-critical
+      }
+    })();
+  }, [authChecked]);
 
   const stats = computeStats(sales);
   const bestSellers = computeBestSellers(sales);
@@ -813,6 +895,35 @@ export default function Home() {
                   </div>
                 </div>
               </div>
+
+              {/* Period Totals */}
+              {periodTotals && (
+                <div className="section-card">
+                  <h2 className="section-title">Period Totals</h2>
+                  <div className="stats-grid">
+                    <div className="stat-card stat-card--blue">
+                      <div className="stat-label">This Week (Mon–Sun)</div>
+                      <div className="stat-value">{formatCurrency(periodTotals.week)}</div>
+                      <div className="stat-sub">{periodTotals.weekLabel}</div>
+                    </div>
+                    <div className="stat-card stat-card--green">
+                      <div className="stat-label">This Month</div>
+                      <div className="stat-value">{formatCurrency(periodTotals.month)}</div>
+                      <div className="stat-sub">{periodTotals.monthLabel}</div>
+                    </div>
+                    <div className="stat-card stat-card--purple">
+                      <div className="stat-label">This Quarter</div>
+                      <div className="stat-value">{formatCurrency(periodTotals.quarter)}</div>
+                      <div className="stat-sub">{periodTotals.quarterLabel}</div>
+                    </div>
+                    <div className="stat-card stat-card--amber">
+                      <div className="stat-label">This Year</div>
+                      <div className="stat-value">{formatCurrency(periodTotals.year)}</div>
+                      <div className="stat-sub">{periodTotals.yearLabel}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="two-col">
                 {/* Best Sellers */}
@@ -1266,6 +1377,60 @@ export default function Home() {
                 <span style={{ fontSize: '0.78rem', color: '#9b7d5e' }}>
                   Max: {refundingSale.quantity} (original qty)
                 </span>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Reason for Refund <span style={{ color: '#c0392b' }}>*</span></label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Damaged item, wrong size..."
+                    value={refundReason}
+                    onChange={(e) => setRefundReason(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Authorized By <span style={{ color: '#c0392b' }}>*</span></label>
+                  <input
+                    type="text"
+                    placeholder="Manager name or ID"
+                    value={refundAuthorizedBy}
+                    onChange={(e) => setRefundAuthorizedBy(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ fontSize: '0.82rem', color: '#9b7d5e', margin: '-0.25rem 0 0.5rem' }}>
+                Customer details (optional)
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Customer Name</label>
+                  <input
+                    type="text"
+                    placeholder="Full name"
+                    value={refundCustomerName}
+                    onChange={(e) => setRefundCustomerName(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Phone Number</label>
+                  <input
+                    type="tel"
+                    placeholder="e.g. 07700 900000"
+                    value={refundCustomerPhone}
+                    onChange={(e) => setRefundCustomerPhone(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Address</label>
+                <input
+                  type="text"
+                  placeholder="Street, city, postcode"
+                  value={refundCustomerAddress}
+                  onChange={(e) => setRefundCustomerAddress(e.target.value)}
+                />
               </div>
 
               <div className="refund-total-preview">
