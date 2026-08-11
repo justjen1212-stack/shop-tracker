@@ -44,11 +44,13 @@ body {
 .header-inner {
   max-width: 1200px;
   margin: 0 auto;
-  height: 64px;
+  min-height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0;
 }
 
 .header-title-block {
@@ -92,6 +94,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 /* ========== Main Content ========== */
@@ -1047,6 +1050,27 @@ body {
 }
 
 @media (max-width: 768px) {
+  .header {
+    padding: 0 1rem;
+  }
+
+  .header-inner {
+    min-height: 52px;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+  }
+
+  .header-actions {
+    gap: 0.4rem;
+  }
+
+  .header-actions .btn-primary,
+  .header-actions .btn-secondary,
+  .header-actions .btn-logout {
+    font-size: 0.78rem;
+    padding: 0.4rem 0.75rem;
+  }
+
   .header-title {
     font-size: 1rem;
   }
