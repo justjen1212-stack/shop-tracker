@@ -183,6 +183,8 @@ export default function Home() {
   const [refundSubmitting, setRefundSubmitting] = useState(false);
   const [refundError, setRefundError] = useState<string | null>(null);
 
+  const [dashTab, setDashTab] = useState<'today' | 'totals'>('today');
+
   // Period totals
   const [periodTotals, setPeriodTotals] = useState<{
     week: number; month: number; quarter: number; year: number;
@@ -843,6 +845,57 @@ export default function Home() {
             <div className="loading">Loading sales...</div>
           ) : (
             <>
+              {/* Tab bar */}
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+                <button
+                  className={dashTab === 'today' ? 'btn-primary' : 'btn-secondary'}
+                  onClick={() => setDashTab('today')}
+                >
+                  Today
+                </button>
+                <button
+                  className={dashTab === 'totals' ? 'btn-primary' : 'btn-secondary'}
+                  onClick={() => setDashTab('totals')}
+                >
+                  Period Totals
+                </button>
+              </div>
+
+              {dashTab === 'totals' && (
+                <>
+                  {periodTotals ? (
+                    <div className="section-card">
+                      <h2 className="section-title">Period Totals</h2>
+                      <div className="stats-grid">
+                        <div className="stat-card stat-card--blue">
+                          <div className="stat-label">This Week (Mon–Sun)</div>
+                          <div className="stat-value">{formatCurrency(periodTotals.week)}</div>
+                          <div className="stat-sub">{periodTotals.weekLabel}</div>
+                        </div>
+                        <div className="stat-card stat-card--green">
+                          <div className="stat-label">This Month</div>
+                          <div className="stat-value">{formatCurrency(periodTotals.month)}</div>
+                          <div className="stat-sub">{periodTotals.monthLabel}</div>
+                        </div>
+                        <div className="stat-card stat-card--purple">
+                          <div className="stat-label">This Quarter</div>
+                          <div className="stat-value">{formatCurrency(periodTotals.quarter)}</div>
+                          <div className="stat-sub">{periodTotals.quarterLabel}</div>
+                        </div>
+                        <div className="stat-card stat-card--amber">
+                          <div className="stat-label">This Year</div>
+                          <div className="stat-value">{formatCurrency(periodTotals.year)}</div>
+                          <div className="stat-sub">{periodTotals.yearLabel}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="empty-text">Loading period totals...</p>
+                  )}
+                </>
+              )}
+
+              {dashTab === 'today' && <>
               {/* Stats Cards */}
               <div className="stats-grid">
                 <div className="stat-card stat-card--blue">
@@ -895,35 +948,6 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-
-              {/* Period Totals */}
-              {periodTotals && (
-                <div className="section-card">
-                  <h2 className="section-title">Period Totals</h2>
-                  <div className="stats-grid">
-                    <div className="stat-card stat-card--blue">
-                      <div className="stat-label">This Week (Mon–Sun)</div>
-                      <div className="stat-value">{formatCurrency(periodTotals.week)}</div>
-                      <div className="stat-sub">{periodTotals.weekLabel}</div>
-                    </div>
-                    <div className="stat-card stat-card--green">
-                      <div className="stat-label">This Month</div>
-                      <div className="stat-value">{formatCurrency(periodTotals.month)}</div>
-                      <div className="stat-sub">{periodTotals.monthLabel}</div>
-                    </div>
-                    <div className="stat-card stat-card--purple">
-                      <div className="stat-label">This Quarter</div>
-                      <div className="stat-value">{formatCurrency(periodTotals.quarter)}</div>
-                      <div className="stat-sub">{periodTotals.quarterLabel}</div>
-                    </div>
-                    <div className="stat-card stat-card--amber">
-                      <div className="stat-label">This Year</div>
-                      <div className="stat-value">{formatCurrency(periodTotals.year)}</div>
-                      <div className="stat-sub">{periodTotals.yearLabel}</div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               <div className="two-col">
                 {/* Best Sellers */}
@@ -1194,6 +1218,7 @@ export default function Home() {
                 )}
               </div>
 
+              </>}
             </>
           )}
         </main>
