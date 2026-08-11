@@ -150,7 +150,7 @@ const emptyForm: SaleFormData = {
   productName: '',
   quantity: 1,
   pricePerUnit: 0,
-  paymentType: 'cash',
+  paymentType: 'card',
   staffName: '',
   category: 'Furniture',
 };
