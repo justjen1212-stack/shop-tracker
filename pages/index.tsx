@@ -190,8 +190,11 @@ export default function Home() {
     week: number; weekCash: number; weekCard: number;
     weekLastYear: number; weekLastYearCash: number; weekLastYearCard: number; weekLastYearLabel: string;
     month: number; monthCash: number; monthCard: number;
+    monthLastYear: number; monthLastYearCash: number; monthLastYearCard: number; monthLastYearLabel: string;
     quarter: number; quarterCash: number; quarterCard: number;
+    quarterLastYear: number; quarterLastYearCash: number; quarterLastYearCard: number; quarterLastYearLabel: string;
     year: number; yearCash: number; yearCard: number;
+    yearLastYear: number; yearLastYearCash: number; yearLastYearCard: number; yearLastYearLabel: string;
     weekLabel: string; monthLabel: string; quarterLabel: string; yearLabel: string;
   } | null>(null);
 
@@ -738,15 +741,36 @@ export default function Home() {
       const lySunday = new Date(sunday); lySunday.setDate(sunday.getDate() - 364);
       const weekLastYearLabel = `${fmt(lyMonday)} – ${fmt(lySunday)}`;
 
+      // Same month last year
+      const lyMonthStart = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+      const lyMonthEnd = new Date(now.getFullYear() - 1, now.getMonth() + 1, 0);
+      const monthLastYearLabel = `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear() - 1}`;
+
+      // Same quarter last year
+      const lyQStart = new Date(now.getFullYear() - 1, q * 3, 1);
+      const lyQEnd = new Date(now.getFullYear() - 1, q * 3 + 3, 0);
+      const quarterLastYearLabel = `Q${q + 1} ${now.getFullYear() - 1}`;
+
+      // Last year total
+      const lyYearStart = `${now.getFullYear() - 1}-01-01`;
+      const lyYearEnd = `${now.getFullYear() - 1}-12-31`;
+      const yearLastYearLabel = `${now.getFullYear() - 1}`;
+
       try {
-        const [wRes, mRes, qRes, yRes, lyRes] = await Promise.all([
+        const [wRes, mRes, qRes, yRes, lwRes, lmRes, lqRes, lyRes] = await Promise.all([
           fetch(`/api/sales?from=${fmt(monday)}&to=${fmt(sunday)}`),
           fetch(`/api/sales?from=${fmt(monthStart)}&to=${fmt(monthEnd)}`),
           fetch(`/api/sales?from=${fmt(qStart)}&to=${fmt(qEnd)}`),
           fetch(`/api/sales?from=${yearStart}&to=${yearEnd}`),
           fetch(`/api/sales?from=${fmt(lyMonday)}&to=${fmt(lySunday)}`),
+          fetch(`/api/sales?from=${fmt(lyMonthStart)}&to=${fmt(lyMonthEnd)}`),
+          fetch(`/api/sales?from=${fmt(lyQStart)}&to=${fmt(lyQEnd)}`),
+          fetch(`/api/sales?from=${lyYearStart}&to=${lyYearEnd}`),
         ]);
-        const [wData, mData, qData, yData, lyData] = await Promise.all([wRes.json(), mRes.json(), qRes.json(), yRes.json(), lyRes.json()]);
+        const [wData, mData, qData, yData, lwData, lmData, lqData, lyData] = await Promise.all([
+          wRes.json(), mRes.json(), qRes.json(), yRes.json(),
+          lwRes.json(), lmRes.json(), lqRes.json(), lyRes.json(),
+        ]);
         const breakdown = (data: any) => {
           const s = ((data.sales ?? []) as Sale[]).filter((s) => s.type !== 'refund');
           return {
@@ -755,13 +779,19 @@ export default function Home() {
             card: s.filter((x) => x.paymentType === 'card').reduce((sum, x) => sum + x.total, 0),
           };
         };
-        const [w, m, q, y, ly] = [breakdown(wData), breakdown(mData), breakdown(qData), breakdown(yData), breakdown(lyData)];
+        const [w, m, q2, y, lw, lm, lq, ly] = [
+          breakdown(wData), breakdown(mData), breakdown(qData), breakdown(yData),
+          breakdown(lwData), breakdown(lmData), breakdown(lqData), breakdown(lyData),
+        ];
         setPeriodTotals({
           week: w.total, weekCash: w.cash, weekCard: w.card, weekLabel,
-          weekLastYear: ly.total, weekLastYearCash: ly.cash, weekLastYearCard: ly.card, weekLastYearLabel,
+          weekLastYear: lw.total, weekLastYearCash: lw.cash, weekLastYearCard: lw.card, weekLastYearLabel,
           month: m.total, monthCash: m.cash, monthCard: m.card, monthLabel,
-          quarter: q.total, quarterCash: q.cash, quarterCard: q.card, quarterLabel,
+          monthLastYear: lm.total, monthLastYearCash: lm.cash, monthLastYearCard: lm.card, monthLastYearLabel,
+          quarter: q2.total, quarterCash: q2.cash, quarterCard: q2.card, quarterLabel,
+          quarterLastYear: lq.total, quarterLastYearCash: lq.cash, quarterLastYearCard: lq.card, quarterLastYearLabel,
           year: y.total, yearCash: y.cash, yearCard: y.card, yearLabel,
+          yearLastYear: ly.total, yearLastYearCash: ly.cash, yearLastYearCard: ly.card, yearLastYearLabel,
         });
       } catch {
         // non-critical
@@ -936,18 +966,42 @@ export default function Home() {
                           <div className="stat-value">{formatCurrency(periodTotals.month)}</div>
                           <div className="stat-sub">{periodTotals.monthLabel}</div>
                           <div className="stat-sub">Cash: {formatCurrency(periodTotals.monthCash)} · Card: {formatCurrency(periodTotals.monthCard)}</div>
+                          <div className="stat-sub" style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+                            <span style={{ fontWeight: 600 }}>Same month last year:</span> {formatCurrency(periodTotals.monthLastYear)}
+                          </div>
+                          <div className="stat-sub">Cash: {formatCurrency(periodTotals.monthLastYearCash)} · Card: {formatCurrency(periodTotals.monthLastYearCard)}</div>
+                          <div className="stat-sub">{periodTotals.monthLastYearLabel}</div>
+                          <div className="stat-sub" style={{ fontWeight: 600, color: periodTotals.month >= periodTotals.monthLastYear ? 'green' : 'crimson' }}>
+                            {periodTotals.month >= periodTotals.monthLastYear ? '▲' : '▼'} {formatCurrency(Math.abs(periodTotals.month - periodTotals.monthLastYear))} vs last year
+                          </div>
                         </div>
                         <div className="stat-card stat-card--purple">
                           <div className="stat-label">This Quarter</div>
                           <div className="stat-value">{formatCurrency(periodTotals.quarter)}</div>
                           <div className="stat-sub">{periodTotals.quarterLabel}</div>
                           <div className="stat-sub">Cash: {formatCurrency(periodTotals.quarterCash)} · Card: {formatCurrency(periodTotals.quarterCard)}</div>
+                          <div className="stat-sub" style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+                            <span style={{ fontWeight: 600 }}>Same quarter last year:</span> {formatCurrency(periodTotals.quarterLastYear)}
+                          </div>
+                          <div className="stat-sub">Cash: {formatCurrency(periodTotals.quarterLastYearCash)} · Card: {formatCurrency(periodTotals.quarterLastYearCard)}</div>
+                          <div className="stat-sub">{periodTotals.quarterLastYearLabel}</div>
+                          <div className="stat-sub" style={{ fontWeight: 600, color: periodTotals.quarter >= periodTotals.quarterLastYear ? 'green' : 'crimson' }}>
+                            {periodTotals.quarter >= periodTotals.quarterLastYear ? '▲' : '▼'} {formatCurrency(Math.abs(periodTotals.quarter - periodTotals.quarterLastYear))} vs last year
+                          </div>
                         </div>
                         <div className="stat-card stat-card--amber">
                           <div className="stat-label">This Year</div>
                           <div className="stat-value">{formatCurrency(periodTotals.year)}</div>
                           <div className="stat-sub">{periodTotals.yearLabel}</div>
                           <div className="stat-sub">Cash: {formatCurrency(periodTotals.yearCash)} · Card: {formatCurrency(periodTotals.yearCard)}</div>
+                          <div className="stat-sub" style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+                            <span style={{ fontWeight: 600 }}>Last year:</span> {formatCurrency(periodTotals.yearLastYear)}
+                          </div>
+                          <div className="stat-sub">Cash: {formatCurrency(periodTotals.yearLastYearCash)} · Card: {formatCurrency(periodTotals.yearLastYearCard)}</div>
+                          <div className="stat-sub">{periodTotals.yearLastYearLabel}</div>
+                          <div className="stat-sub" style={{ fontWeight: 600, color: periodTotals.year >= periodTotals.yearLastYear ? 'green' : 'crimson' }}>
+                            {periodTotals.year >= periodTotals.yearLastYear ? '▲' : '▼'} {formatCurrency(Math.abs(periodTotals.year - periodTotals.yearLastYear))} vs last year
+                          </div>
                         </div>
                       </div>
                     </div>
