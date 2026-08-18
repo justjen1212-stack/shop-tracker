@@ -21,7 +21,7 @@ function formatTime(isoString: string | null): string {
 }
 
 const PAYMENT_LABELS: Record<string, string> = { cash: 'Cash', card: 'Card', online: 'Online' };
-const CATEGORIES = ['Furniture', 'Mirrors', 'Lighting', 'Textiles', 'Accessories', 'Artwork', 'Gifts', 'Hats', 'Pistols', 'Other'];
+const CATEGORIES = ['Gifts', 'Furniture', 'Mirrors', 'Lighting', 'Textiles', 'Accessories', 'Artwork', 'Hats', 'Pistols', 'Other'];
 
 interface ManualRefundForm {
   productName: string;

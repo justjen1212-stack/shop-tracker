@@ -36,7 +36,7 @@ function formatTime(isoString: string | null): string {
   return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
-const CATEGORIES = ['Furniture', 'Mirrors', 'Lighting', 'Textiles', 'Accessories', 'Artwork', 'Gifts', 'Hats', 'Pistols', 'Other'];
+const CATEGORIES = ['Gifts', 'Furniture', 'Mirrors', 'Lighting', 'Textiles', 'Accessories', 'Artwork', 'Hats', 'Pistols', 'Other'];
 
 interface Stats {
   totalRevenue: number;
