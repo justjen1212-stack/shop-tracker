@@ -1292,13 +1292,15 @@ export default function Home() {
                     </tr>
                   </thead>
                   <tbody>
-                    {products.map((product) => (
-                      editingProduct?.id === product.id ? (
+                    {products.map((product) => {
+                      const isEditing = editingProduct?.id === product.id;
+                      const ep = editingProduct!;
+                      return isEditing ? (
                         <tr key={product.id}>
                           <td>
                             <input
                               name="name"
-                              value={editingProduct.name}
+                              value={ep.name}
                               onChange={handleEditChange}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '0.85rem' }}
                             />
@@ -1309,7 +1311,7 @@ export default function Home() {
                               type="number"
                               min="0.01"
                               step="0.01"
-                              value={editingProduct.pricePerUnit}
+                              value={ep.pricePerUnit}
                               onChange={handleEditChange}
                               style={{ width: '80px', padding: '4px 6px', fontSize: '0.85rem' }}
                             />
@@ -1317,7 +1319,7 @@ export default function Home() {
                           <td>
                             <select
                               name="category"
-                              value={editingProduct.category}
+                              value={ep.category}
                               onChange={handleEditChange}
                               style={{ padding: '4px 6px', fontSize: '0.85rem' }}
                             >
@@ -1354,8 +1356,8 @@ export default function Home() {
                             </button>
                           </td>
                         </tr>
-                      )
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
