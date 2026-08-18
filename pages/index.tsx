@@ -152,7 +152,7 @@ const emptyForm: SaleFormData = {
   pricePerUnit: 0,
   paymentType: 'card',
   staffName: '',
-  category: 'Furniture',
+  category: 'Gifts',
 };
 
 export default function Home() {
