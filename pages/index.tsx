@@ -188,6 +188,7 @@ export default function Home() {
   // Period totals
   const [periodTotals, setPeriodTotals] = useState<{
     week: number; weekCash: number; weekCard: number;
+    weekLastYear: number; weekLastYearCash: number; weekLastYearCard: number; weekLastYearLabel: string;
     month: number; monthCash: number; monthCard: number;
     quarter: number; quarterCash: number; quarterCard: number;
     year: number; yearCash: number; yearCard: number;
@@ -732,14 +733,20 @@ export default function Home() {
       const quarterLabel = `Q${q + 1} ${now.getFullYear()}`;
       const yearLabel = `${now.getFullYear()}`;
 
+      // Same week last year (52 weeks back = 364 days, keeps Mon–Sun alignment)
+      const lyMonday = new Date(monday); lyMonday.setDate(monday.getDate() - 364);
+      const lySunday = new Date(sunday); lySunday.setDate(sunday.getDate() - 364);
+      const weekLastYearLabel = `${fmt(lyMonday)} – ${fmt(lySunday)}`;
+
       try {
-        const [wRes, mRes, qRes, yRes] = await Promise.all([
+        const [wRes, mRes, qRes, yRes, lyRes] = await Promise.all([
           fetch(`/api/sales?from=${fmt(monday)}&to=${fmt(sunday)}`),
           fetch(`/api/sales?from=${fmt(monthStart)}&to=${fmt(monthEnd)}`),
           fetch(`/api/sales?from=${fmt(qStart)}&to=${fmt(qEnd)}`),
           fetch(`/api/sales?from=${yearStart}&to=${yearEnd}`),
+          fetch(`/api/sales?from=${fmt(lyMonday)}&to=${fmt(lySunday)}`),
         ]);
-        const [wData, mData, qData, yData] = await Promise.all([wRes.json(), mRes.json(), qRes.json(), yRes.json()]);
+        const [wData, mData, qData, yData, lyData] = await Promise.all([wRes.json(), mRes.json(), qRes.json(), yRes.json(), lyRes.json()]);
         const breakdown = (data: any) => {
           const s = ((data.sales ?? []) as Sale[]).filter((s) => s.type !== 'refund');
           return {
@@ -748,9 +755,10 @@ export default function Home() {
             card: s.filter((x) => x.paymentType === 'card').reduce((sum, x) => sum + x.total, 0),
           };
         };
-        const [w, m, q, y] = [breakdown(wData), breakdown(mData), breakdown(qData), breakdown(yData)];
+        const [w, m, q, y, ly] = [breakdown(wData), breakdown(mData), breakdown(qData), breakdown(yData), breakdown(lyData)];
         setPeriodTotals({
           week: w.total, weekCash: w.cash, weekCard: w.card, weekLabel,
+          weekLastYear: ly.total, weekLastYearCash: ly.cash, weekLastYearCard: ly.card, weekLastYearLabel,
           month: m.total, monthCash: m.cash, monthCard: m.card, monthLabel,
           quarter: q.total, quarterCash: q.cash, quarterCard: q.card, quarterLabel,
           year: y.total, yearCash: y.cash, yearCard: y.card, yearLabel,
@@ -914,6 +922,14 @@ export default function Home() {
                           <div className="stat-value">{formatCurrency(periodTotals.week)}</div>
                           <div className="stat-sub">{periodTotals.weekLabel}</div>
                           <div className="stat-sub">Cash: {formatCurrency(periodTotals.weekCash)} · Card: {formatCurrency(periodTotals.weekCard)}</div>
+                          <div className="stat-sub" style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+                            <span style={{ fontWeight: 600 }}>Same week last year:</span> {formatCurrency(periodTotals.weekLastYear)}
+                          </div>
+                          <div className="stat-sub">Cash: {formatCurrency(periodTotals.weekLastYearCash)} · Card: {formatCurrency(periodTotals.weekLastYearCard)}</div>
+                          <div className="stat-sub">{periodTotals.weekLastYearLabel}</div>
+                          <div className="stat-sub" style={{ fontWeight: 600, color: periodTotals.week >= periodTotals.weekLastYear ? 'green' : 'crimson' }}>
+                            {periodTotals.week >= periodTotals.weekLastYear ? '▲' : '▼'} {formatCurrency(Math.abs(periodTotals.week - periodTotals.weekLastYear))} vs last year
+                          </div>
                         </div>
                         <div className="stat-card stat-card--green">
                           <div className="stat-label">This Month</div>
