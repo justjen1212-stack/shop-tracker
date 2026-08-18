@@ -187,7 +187,10 @@ export default function Home() {
 
   // Period totals
   const [periodTotals, setPeriodTotals] = useState<{
-    week: number; month: number; quarter: number; year: number;
+    week: number; weekCash: number; weekCard: number;
+    month: number; monthCash: number; monthCard: number;
+    quarter: number; quarterCash: number; quarterCard: number;
+    year: number; yearCash: number; yearCard: number;
     weekLabel: string; monthLabel: string; quarterLabel: string; yearLabel: string;
   } | null>(null);
 
@@ -737,15 +740,20 @@ export default function Home() {
           fetch(`/api/sales?from=${yearStart}&to=${yearEnd}`),
         ]);
         const [wData, mData, qData, yData] = await Promise.all([wRes.json(), mRes.json(), qRes.json(), yRes.json()]);
-        const total = (data: any) =>
-          ((data.sales ?? []) as Sale[])
-            .filter((s) => s.type !== 'refund')
-            .reduce((sum, s) => sum + s.total, 0);
+        const breakdown = (data: any) => {
+          const s = ((data.sales ?? []) as Sale[]).filter((s) => s.type !== 'refund');
+          return {
+            total: s.reduce((sum, x) => sum + x.total, 0),
+            cash: s.filter((x) => x.paymentType === 'cash').reduce((sum, x) => sum + x.total, 0),
+            card: s.filter((x) => x.paymentType === 'card').reduce((sum, x) => sum + x.total, 0),
+          };
+        };
+        const [w, m, q, y] = [breakdown(wData), breakdown(mData), breakdown(qData), breakdown(yData)];
         setPeriodTotals({
-          week: total(wData), weekLabel,
-          month: total(mData), monthLabel,
-          quarter: total(qData), quarterLabel,
-          year: total(yData), yearLabel,
+          week: w.total, weekCash: w.cash, weekCard: w.card, weekLabel,
+          month: m.total, monthCash: m.cash, monthCard: m.card, monthLabel,
+          quarter: q.total, quarterCash: q.cash, quarterCard: q.card, quarterLabel,
+          year: y.total, yearCash: y.cash, yearCard: y.card, yearLabel,
         });
       } catch {
         // non-critical
@@ -905,21 +913,25 @@ export default function Home() {
                           <div className="stat-label">This Week (Mon–Sun)</div>
                           <div className="stat-value">{formatCurrency(periodTotals.week)}</div>
                           <div className="stat-sub">{periodTotals.weekLabel}</div>
+                          <div className="stat-sub">Cash: {formatCurrency(periodTotals.weekCash)} · Card: {formatCurrency(periodTotals.weekCard)}</div>
                         </div>
                         <div className="stat-card stat-card--green">
                           <div className="stat-label">This Month</div>
                           <div className="stat-value">{formatCurrency(periodTotals.month)}</div>
                           <div className="stat-sub">{periodTotals.monthLabel}</div>
+                          <div className="stat-sub">Cash: {formatCurrency(periodTotals.monthCash)} · Card: {formatCurrency(periodTotals.monthCard)}</div>
                         </div>
                         <div className="stat-card stat-card--purple">
                           <div className="stat-label">This Quarter</div>
                           <div className="stat-value">{formatCurrency(periodTotals.quarter)}</div>
                           <div className="stat-sub">{periodTotals.quarterLabel}</div>
+                          <div className="stat-sub">Cash: {formatCurrency(periodTotals.quarterCash)} · Card: {formatCurrency(periodTotals.quarterCard)}</div>
                         </div>
                         <div className="stat-card stat-card--amber">
                           <div className="stat-label">This Year</div>
                           <div className="stat-value">{formatCurrency(periodTotals.year)}</div>
                           <div className="stat-sub">{periodTotals.yearLabel}</div>
+                          <div className="stat-sub">Cash: {formatCurrency(periodTotals.yearCash)} · Card: {formatCurrency(periodTotals.yearCard)}</div>
                         </div>
                       </div>
                     </div>
