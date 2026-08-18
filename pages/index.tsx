@@ -152,7 +152,7 @@ const emptyForm: SaleFormData = {
   pricePerUnit: 0,
   paymentType: 'card',
   staffName: '',
-  category: 'Gifts',
+  category: 'Furniture',
 };
 
 export default function Home() {
@@ -201,7 +201,7 @@ export default function Home() {
   const [productForm, setProductForm] = useState<{ name: string; pricePerUnit: number; category: string }>({
     name: '',
     pricePerUnit: 0,
-    category: 'Gifts',
+    category: 'Furniture',
   });
   const [productFormError, setProductFormError] = useState<string | null>(null);
   const [productSubmitting, setProductSubmitting] = useState<boolean>(false);
@@ -335,7 +335,7 @@ export default function Home() {
   };
 
   const openProductsModal = () => {
-    setProductForm({ name: '', pricePerUnit: 0, category: 'Gifts' });
+    setProductForm({ name: '', pricePerUnit: 0, category: 'Furniture' });
     setProductFormError(null);
     setProductsModalOpen(true);
   };
@@ -379,7 +379,7 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Failed to add product');
-      setProductForm({ name: '', pricePerUnit: 0, category: 'Gifts' });
+      setProductForm({ name: '', pricePerUnit: 0, category: 'Furniture' });
       await fetchProducts();
     } catch (e: any) {
       setProductFormError(e.message);
@@ -412,6 +412,7 @@ export default function Home() {
         ...prev,
         productName: product.name,
         pricePerUnit: product.pricePerUnit,
+        category: product.category,
       }));
     }
   };
