@@ -412,7 +412,6 @@ export default function Home() {
         ...prev,
         productName: product.name,
         pricePerUnit: product.pricePerUnit,
-        category: product.category,
       }));
     }
   };
