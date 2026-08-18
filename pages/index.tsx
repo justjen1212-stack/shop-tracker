@@ -388,6 +388,39 @@ export default function Home() {
     }
   };
 
+  const handleStartEdit = (product: Product) => {
+    setEditingProduct({ ...product });
+  };
+
+  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setEditingProduct((prev) => prev ? {
+      ...prev,
+      [name]: name === 'pricePerUnit' ? Number(value) : value,
+    } : null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingProduct?.id) return;
+    try {
+      const res = await fetch(`/api/products?id=${editingProduct.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editingProduct.name.trim(),
+          pricePerUnit: editingProduct.pricePerUnit,
+          category: editingProduct.category,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to update product');
+      setEditingProduct(null);
+      await fetchProducts();
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
+
   const handleDeleteProduct = async (id: string) => {
     if (!confirm('Delete this product from the catalogue?')) return;
     setDeletingProductId(id);
@@ -1243,6 +1276,7 @@ export default function Home() {
               </button>
             </div>
 
+            <div style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 180px)', padding: '1.25rem 1.5rem' }}>
             {/* Existing products list */}
             <div style={{ marginBottom: '1.5rem' }}>
               {products.length === 0 ? (
@@ -1259,20 +1293,68 @@ export default function Home() {
                   </thead>
                   <tbody>
                     {products.map((product) => (
-                      <tr key={product.id}>
-                        <td className="product-name">{product.name}</td>
-                        <td>{formatCurrency(product.pricePerUnit)}</td>
-                        <td>{product.category}</td>
-                        <td>
-                          <button
-                            className="btn-delete"
-                            onClick={() => handleDeleteProduct(product.id!)}
-                            disabled={deletingProductId === product.id}
-                          >
-                            {deletingProductId === product.id ? '...' : 'Delete'}
-                          </button>
-                        </td>
-                      </tr>
+                      editingProduct?.id === product.id ? (
+                        <tr key={product.id}>
+                          <td>
+                            <input
+                              name="name"
+                              value={editingProduct.name}
+                              onChange={handleEditChange}
+                              style={{ width: '100%', padding: '4px 6px', fontSize: '0.85rem' }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              name="pricePerUnit"
+                              type="number"
+                              min="0.01"
+                              step="0.01"
+                              value={editingProduct.pricePerUnit}
+                              onChange={handleEditChange}
+                              style={{ width: '80px', padding: '4px 6px', fontSize: '0.85rem' }}
+                            />
+                          </td>
+                          <td>
+                            <select
+                              name="category"
+                              value={editingProduct.category}
+                              onChange={handleEditChange}
+                              style={{ padding: '4px 6px', fontSize: '0.85rem' }}
+                            >
+                              {CATEGORIES.map((cat) => (
+                                <option key={cat} value={cat}>{cat}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td style={{ whiteSpace: 'nowrap' }}>
+                            <button className="btn-primary" onClick={handleSaveEdit} style={{ marginRight: '4px', padding: '4px 10px', fontSize: '0.8rem' }}>Save</button>
+                            <button className="btn-secondary" onClick={() => setEditingProduct(null)} style={{ padding: '4px 10px', fontSize: '0.8rem' }}>Cancel</button>
+                          </td>
+                        </tr>
+                      ) : (
+                        <tr key={product.id}>
+                          <td className="product-name">{product.name}</td>
+                          <td>{formatCurrency(product.pricePerUnit)}</td>
+                          <td>{product.category}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>
+                            <button
+                              className="btn-secondary"
+                              onClick={() => handleStartEdit(product)}
+                              style={{ marginRight: '4px', padding: '4px 10px', fontSize: '0.8rem' }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn-delete"
+                              onClick={() => handleDeleteProduct(product.id!)}
+                              disabled={deletingProductId === product.id}
+                              style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                            >
+                              {deletingProductId === product.id ? '...' : 'Delete'}
+                            </button>
+                          </td>
+                        </tr>
+                      )
                     ))}
                   </tbody>
                 </table>
@@ -1347,6 +1429,7 @@ export default function Home() {
                   </button>
                 </div>
               </form>
+            </div>
             </div>
           </div>
         </div>
