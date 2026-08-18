@@ -208,7 +208,7 @@ export default function Home() {
   const [productForm, setProductForm] = useState<{ name: string; pricePerUnit: number; category: string }>({
     name: '',
     pricePerUnit: 0,
-    category: 'Furniture',
+    category: 'Gifts',
   });
   const [productFormError, setProductFormError] = useState<string | null>(null);
   const [productSubmitting, setProductSubmitting] = useState<boolean>(false);
@@ -342,7 +342,7 @@ export default function Home() {
   };
 
   const openProductsModal = () => {
-    setProductForm({ name: '', pricePerUnit: 0, category: 'Furniture' });
+    setProductForm({ name: '', pricePerUnit: 0, category: 'Gifts' });
     setProductFormError(null);
     setProductsModalOpen(true);
   };
@@ -386,7 +386,7 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Failed to add product');
-      setProductForm({ name: '', pricePerUnit: 0, category: 'Furniture' });
+      setProductForm({ name: '', pricePerUnit: 0, category: 'Gifts' });
       await fetchProducts();
     } catch (e: any) {
       setProductFormError(e.message);

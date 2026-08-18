@@ -64,5 +64,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
+  if (req.method === 'PUT') {
+    const { id } = req.query;
+    if (!id || typeof id !== 'string') {
+      return res.status(400).json({ error: 'Missing id query parameter' });
+    }
+    const { name, pricePerUnit, category } = req.body as Product;
+    if (!name || !pricePerUnit || !category) {
+      return res.status(400).json({ error: 'Missing required fields: name, pricePerUnit, category' });
+    }
+    try {
+      await adminDb.collection('shop_products').doc(id).update({
+        name: String(name).trim(),
+        pricePerUnit: Number(pricePerUnit),
+        category: String(category),
+      });
+      return res.status(200).json({ success: true });
+    } catch (error: any) {
+      console.error('PUT /api/products error:', error);
+      return res.status(500).json({ error: error.message ?? 'Failed to update product' });
+    }
+  }
+
   return res.status(405).json({ error: 'Method not allowed' });
 }
