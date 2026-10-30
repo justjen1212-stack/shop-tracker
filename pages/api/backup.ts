@@ -63,7 +63,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     const now = new Date();
-    const label = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const label = now.toISOString().slice(0, 10); // YYYY-MM-DD
     const jsonContent = JSON.stringify(sales, null, 2);
     const csvContent = toCSV(sales);
 
@@ -72,15 +72,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await resend.emails.send({
       from: 'Scape West <onboarding@resend.dev>',
       to: toEmail,
-      subject: `Shop Sales Backup — ${label} (${sales.length} records)`,
+      subject: `Weekly Shop Sales Backup — ${label} (${sales.length} records)`,
       html: `
-        <p>Your monthly sales backup is attached.</p>
+        <p>Your weekly sales backup is attached.</p>
         <ul>
-          <li><strong>Period:</strong> All records up to ${now.toDateString()}</li>
+          <li><strong>Date:</strong> ${now.toDateString()}</li>
           <li><strong>Total records:</strong> ${sales.length}</li>
         </ul>
         <p>Two files are attached: a JSON file (full data) and a CSV file (easy to open in Excel/Sheets).</p>
-        <p style="color:#888;font-size:12px;">This backup was generated automatically by your Shop Tracker.</p>
+        <p style="color:#888;font-size:12px;">This backup was generated automatically every Monday at 11am by your Shop Tracker.</p>
       `,
       attachments: [
         {
