@@ -38,6 +38,16 @@ function formatTime(isoString: string | null): string {
 
 const CATEGORIES = ['Gifts', 'Furniture', 'Mirrors', 'Lighting', 'Textiles', 'Accessories', 'Artwork', 'Hats', 'Pistols', 'Other'];
 
+interface Task {
+  id: string;
+  text: string;
+  completed: boolean;
+  createdBy: string;
+  completedBy: string;
+  createdAt: string | null;
+  completedAt: string | null;
+}
+
 interface Stats {
   totalRevenue: number;
   numberOfSales: number;
@@ -165,6 +175,7 @@ export default function Home() {
 
   const [modalOpen, setModalOpen] = useState<boolean>(false);
   const [formData, setFormData] = useState<SaleFormData>(emptyForm);
+  const [quickSelectValue, setQuickSelectValue] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -214,6 +225,38 @@ export default function Home() {
   const [productSubmitting, setProductSubmitting] = useState<boolean>(false);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // Jobs checklist state
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskInput, setTaskInput] = useState('');
+  const [taskSubmitting, setTaskSubmitting] = useState(false);
+  const [togglingTaskId, setTogglingTaskId] = useState<string | null>(null);
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+
+  // Backup state
+  const [backupStatus, setBackupStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const handleBackup = async () => {
+    if (backupStatus === 'loading') return;
+    setBackupStatus('loading');
+    try {
+      const res = await fetch('/api/backup', { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? 'Backup failed');
+      }
+      setBackupStatus('success');
+      setTimeout(() => setBackupStatus('idle'), 4000);
+    } catch {
+      setBackupStatus('error');
+      setTimeout(() => setBackupStatus('idle'), 4000);
+    }
+  };
+
+  // Handover note state
+  const [handoverText, setHandoverText] = useState('');
+  const [handoverSaving, setHandoverSaving] = useState(false);
+  const [handoverSaved, setHandoverSaved] = useState(false);
+  const [prevHandover, setPrevHandover] = useState<{ text: string; updatedBy: string; updatedAt: string | null } | null>(null);
 
   // Cashout state
   const [cashout, setCashout] = useState<{
@@ -296,6 +339,7 @@ export default function Home() {
     }
   }, [selectedDate, fetchSales, fetchProducts, authChecked]);
 
+
   const handleLogout = async () => {
     await fetch('/api/auth', { method: 'DELETE' });
     router.push('/login');
@@ -314,6 +358,7 @@ export default function Home() {
 
   const openModal = () => {
     setFormData(emptyForm);
+    setQuickSelectValue('');
     setEditingSale(null);
     setFormError(null);
     setFormSuccess(false);
@@ -445,6 +490,7 @@ export default function Home() {
 
   const handleQuickSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const productId = e.target.value;
+    setQuickSelectValue(productId);
     if (!productId) return;
     const product = products.find((p) => p.id === productId);
     if (product) {
@@ -452,6 +498,7 @@ export default function Home() {
         ...prev,
         productName: product.name,
         pricePerUnit: product.pricePerUnit,
+        category: product.category,
       }));
     }
   };
@@ -521,6 +568,7 @@ export default function Home() {
       } else {
         // Keep modal open for next sale — reset form and show success flash
         setFormData(emptyForm);
+        setQuickSelectValue('');
         setFormError(null);
         setFormSuccess(true);
         setTimeout(() => setFormSuccess(false), 2500);
@@ -603,6 +651,98 @@ export default function Home() {
       setRefundError(e.message);
     } finally {
       setRefundSubmitting(false);
+    }
+  };
+
+  const fetchTasks = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tasks');
+      const data = await res.json();
+      if (res.ok) setTasks(data.tasks);
+    } catch { /* non-critical */ }
+  }, []);
+
+  const handleAddTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!taskInput.trim()) return;
+    setTaskSubmitting(true);
+    try {
+      await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: taskInput.trim(), createdBy: currentStaff }),
+      });
+      setTaskInput('');
+      await fetchTasks();
+    } catch { alert('Failed to add task'); }
+    finally { setTaskSubmitting(false); }
+  };
+
+  const handleToggleTask = async (task: Task) => {
+    setTogglingTaskId(task.id);
+    try {
+      await fetch(`/api/tasks?id=${task.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: !task.completed, completedBy: currentStaff }),
+      });
+      await fetchTasks();
+    } catch { alert('Failed to update task'); }
+    finally { setTogglingTaskId(null); }
+  };
+
+  const handleDeleteTask = async (id: string) => {
+    if (!confirm('Remove this task?')) return;
+    setDeletingTaskId(id);
+    try {
+      await fetch(`/api/tasks?id=${id}`, { method: 'DELETE' });
+      await fetchTasks();
+    } catch { alert('Failed to delete task'); }
+    finally { setDeletingTaskId(null); }
+  };
+
+  useEffect(() => {
+    if (authChecked) fetchTasks();
+  }, [authChecked, fetchTasks]);
+
+  const fetchHandover = useCallback(async (date: string) => {
+    // Load today's note for editing
+    try {
+      const res = await fetch(`/api/handover?date=${date}`);
+      const data = await res.json();
+      setHandoverText(data.note?.text ?? '');
+      setHandoverSaved(!!data.note);
+    } catch {
+      // non-critical
+    }
+
+    // Load previous day's note for display
+    try {
+      const prev = new Date(date + 'T12:00:00');
+      prev.setDate(prev.getDate() - 1);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const prevDate = `${prev.getFullYear()}-${pad(prev.getMonth() + 1)}-${pad(prev.getDate())}`;
+      const res2 = await fetch(`/api/handover?date=${prevDate}`);
+      const data2 = await res2.json();
+      setPrevHandover(data2.note ?? null);
+    } catch {
+      // non-critical
+    }
+  }, []);
+
+  const handleSaveHandover = async () => {
+    setHandoverSaving(true);
+    try {
+      await fetch('/api/handover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: selectedDate, text: handoverText, updatedBy: currentStaff }),
+      });
+      setHandoverSaved(true);
+    } catch {
+      alert('Failed to save handover note');
+    } finally {
+      setHandoverSaving(false);
     }
   };
 
@@ -701,6 +841,13 @@ export default function Home() {
       fetchCashout(selectedDate, currentStats);
     }
   }, [authChecked, selectedDate, sales, fetchCashout]);
+
+  useEffect(() => {
+    if (authChecked) {
+      setHandoverSaved(false);
+      fetchHandover(selectedDate);
+    }
+  }, [authChecked, selectedDate, fetchHandover]);
 
   // Fetch period totals once on mount
   useEffect(() => {
@@ -803,6 +950,7 @@ export default function Home() {
   const staffLeaderboard = computeStaffLeaderboard(sales);
   const bestCategory = computeBestCategory(sales);
 
+
   if (!authChecked) {
     return null;
   }
@@ -833,11 +981,25 @@ export default function Home() {
               <button className="btn-secondary" onClick={() => router.push('/best-sellers')}>
                 Best Sellers
               </button>
+              <button className="btn-secondary" onClick={() => router.push('/hours')}>
+                Peak Hours
+              </button>
+              <button className="btn-secondary" onClick={() => router.push('/big-days')}>
+                Big Days
+              </button>
               <button className="btn-secondary" onClick={() => router.push('/search')}>
                 Search
               </button>
               <button className="btn-secondary" onClick={() => router.push('/refunds')}>
                 Refunds
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={handleBackup}
+                disabled={backupStatus === 'loading'}
+                style={backupStatus === 'success' ? { color: '#4a7c59', borderColor: '#4a7c59' } : backupStatus === 'error' ? { color: '#b91c1c', borderColor: '#b91c1c' } : undefined}
+              >
+                {backupStatus === 'loading' ? 'Backing up…' : backupStatus === 'success' ? 'Backed up!' : backupStatus === 'error' ? 'Backup failed' : 'Backup Data'}
               </button>
               <button className="btn-primary" onClick={openModal}>
                 + Add Sale
@@ -1212,6 +1374,109 @@ export default function Home() {
                 )}
               </div>
 
+              {/* Jobs Checklist */}
+              <div className="section-card">
+                <h2 className="section-title">
+                  Jobs Checklist
+                  {tasks.filter((t) => !t.completed).length > 0 && (
+                    <span className="count-badge">{tasks.filter((t) => !t.completed).length} to do</span>
+                  )}
+                </h2>
+
+                {/* Add task form */}
+                <form onSubmit={handleAddTask} style={{ display: 'flex', gap: '0.65rem', marginBottom: '1.25rem' }}>
+                  <input
+                    className="search-input"
+                    type="text"
+                    placeholder="Add a job e.g. Restock hats, Call supplier..."
+                    value={taskInput}
+                    onChange={(e) => setTaskInput(e.target.value)}
+                    style={{ flex: 1 }}
+                    spellCheck={true}
+                  />
+                  <button className="btn-primary" type="submit" disabled={taskSubmitting || !taskInput.trim()}>
+                    {taskSubmitting ? '...' : 'Add'}
+                  </button>
+                </form>
+
+                {tasks.length === 0 ? (
+                  <p className="empty-text">No jobs on the list yet.</p>
+                ) : (
+                  <div className="task-list">
+                    {tasks.map((task) => (
+                      <div key={task.id} className={`task-item${task.completed ? ' task-item--done' : ''}`}>
+                        <button
+                          className={`task-checkbox${task.completed ? ' task-checkbox--checked' : ''}`}
+                          onClick={() => handleToggleTask(task)}
+                          disabled={togglingTaskId === task.id}
+                          aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
+                        >
+                          {task.completed ? '✓' : ''}
+                        </button>
+                        <div className="task-body">
+                          <span className="task-text">{task.text}</span>
+                          <span className="task-meta">
+                            Added{task.createdBy ? ` by ${task.createdBy}` : ''}
+                            {task.completed && task.completedBy ? ` · Done by ${task.completedBy}` : ''}
+                          </span>
+                        </div>
+                        <button
+                          className="btn-delete"
+                          style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}
+                          onClick={() => handleDeleteTask(task.id)}
+                          disabled={deletingTaskId === task.id}
+                        >
+                          {deletingTaskId === task.id ? '...' : 'Remove'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Handover Note */}
+              <div className="section-card">
+                <h2 className="section-title">
+                  Handover Note
+                  {handoverSaved && (
+                    <span className="cashout-saved-badge">Saved</span>
+                  )}
+                </h2>
+
+                {prevHandover && prevHandover.text.trim() && (
+                  <div className="handover-prev">
+                    <div className="handover-prev-label">
+                      Previous handover{prevHandover.updatedBy ? ` — left by ${prevHandover.updatedBy}` : ''}
+                    </div>
+                    <div className="handover-prev-text">{prevHandover.text}</div>
+                  </div>
+                )}
+
+                <div className="form-group" style={{ marginTop: prevHandover && prevHandover.text.trim() ? '1rem' : '0' }}>
+                  <label htmlFor="handover-text">
+                    {selectedDate === todayString() ? "Today's note for the next person" : `Note for ${selectedDate}`}
+                  </label>
+                  <textarea
+                    id="handover-text"
+                    className="cashout-notes"
+                    style={{ minHeight: '100px' }}
+                    placeholder="e.g. Stock delivery expected tomorrow. Blue vase on hold for customer — do not sell. Till was £2 short, check with manager..."
+                    value={handoverText}
+                    onChange={(e) => { setHandoverText(e.target.value); setHandoverSaved(false); }}
+                    spellCheck={true}
+                  />
+                </div>
+
+                <button
+                  className="btn-primary"
+                  style={{ width: '100%', marginTop: '1rem' }}
+                  onClick={handleSaveHandover}
+                  disabled={handoverSaving || !handoverText.trim()}
+                >
+                  {handoverSaving ? 'Saving...' : handoverSaved ? 'Update Note' : 'Save Note'}
+                </button>
+              </div>
+
               {/* Daily Cashout */}
               <div className="section-card">
                 <h2 className="section-title">
@@ -1318,6 +1583,7 @@ export default function Home() {
                         placeholder="Any notes for this cashout..."
                         value={cashout.notes}
                         onChange={handleCashoutChange}
+                        spellCheck={true}
                       />
                     </div>
 
@@ -1579,6 +1845,7 @@ export default function Home() {
                     placeholder="e.g. Damaged item, wrong size..."
                     value={refundReason}
                     onChange={(e) => setRefundReason(e.target.value)}
+                    spellCheck={true}
                   />
                 </div>
                 <div className="form-group">
@@ -1680,11 +1947,11 @@ export default function Home() {
                   <label htmlFor="quickSelect">Select a product (optional)</label>
                   <select
                     id="quickSelect"
+                    value={quickSelectValue}
                     onChange={handleQuickSelect}
-                    defaultValue=""
                   >
                     <option value="">— choose from catalogue —</option>
-                    {products.map((p) => (
+                    {[...products].sort((a, b) => a.pricePerUnit - b.pricePerUnit).map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name} — {formatCurrency(p.pricePerUnit)} ({p.category})
                       </option>
@@ -1703,6 +1970,7 @@ export default function Home() {
                   value={formData.productName}
                   onChange={handleFormChange}
                   autoComplete="off"
+                  spellCheck={true}
                   required
                 />
               </div>

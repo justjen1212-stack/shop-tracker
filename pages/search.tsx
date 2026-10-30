@@ -3,6 +3,13 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { Sale } from '../types/sale';
 
+interface HandoverNote {
+  date: string;
+  text: string;
+  updatedBy: string;
+  updatedAt: string | null;
+}
+
 function todayString(): string {
   const d = new Date();
   return d.toISOString().slice(0, 10);
@@ -42,6 +49,16 @@ function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(amount);
 }
 
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function formatTime(isoString: string | null): string {
+  if (!isoString) return '';
+  return new Date(isoString).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
 function matchesTerm(sale: Sale, term: string): boolean {
   return sale.productName.toLowerCase().includes(term.toLowerCase().trim());
 }
@@ -51,6 +68,7 @@ interface PeriodResult {
   units: number;
   revenue: number;
   transactions: number;
+  sales: Sale[];
 }
 
 function computeAllPeriods(sales: Sale[], term: string, today: string): PeriodResult[] {
@@ -68,14 +86,15 @@ function computeAllPeriods(sales: Sale[], term: string, today: string): PeriodRe
   ];
 
   return periods.map(({ label, from, to }) => {
-    const filtered = sales.filter(
-      (s) => s.date >= from && s.date <= to && matchesTerm(s, term)
-    );
+    const filtered = sales
+      .filter((s) => s.date >= from && s.date <= to && matchesTerm(s, term))
+      .sort((a, b) => a.date.localeCompare(b.date));
     return {
       label,
       units: filtered.reduce((sum, s) => sum + s.quantity, 0),
       revenue: filtered.reduce((sum, s) => sum + s.total, 0),
       transactions: filtered.length,
+      sales: filtered,
     };
   });
 }
@@ -116,6 +135,15 @@ export default function SearchPage() {
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Handover search
+  const [handoverQuery, setHandoverQuery] = useState('');
+  const [handoverResults, setHandoverResults] = useState<HandoverNote[]>([]);
+  const [handoverSearched, setHandoverSearched] = useState(false);
+  const [handoverLoading, setHandoverLoading] = useState(false);
+  const [handoverError, setHandoverError] = useState<string | null>(null);
+  const [handoverSearchedTerm, setHandoverSearchedTerm] = useState('');
+  const [expandedPeriod, setExpandedPeriod] = useState<string | null>(null);
 
   useEffect(() => {
     const cookies = document.cookie.split(';').map((c) => c.trim());
@@ -158,6 +186,29 @@ export default function SearchPage() {
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleSearch();
+  };
+
+  const handleHandoverSearch = async () => {
+    const term = handoverQuery.trim();
+    if (!term) return;
+    setHandoverLoading(true);
+    setHandoverError(null);
+    setHandoverSearched(false);
+    try {
+      const res = await fetch('/api/handover?all=true');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to fetch');
+      const matches = (data.notes as HandoverNote[])
+        .filter((n) => n.text.toLowerCase().includes(term.toLowerCase()))
+        .sort((a, b) => b.date.localeCompare(a.date));
+      setHandoverResults(matches);
+      setHandoverSearchedTerm(term);
+      setHandoverSearched(true);
+    } catch (e: any) {
+      setHandoverError(e.message);
+    } finally {
+      setHandoverLoading(false);
+    }
   };
 
   if (!authChecked) return null;
@@ -249,6 +300,9 @@ export default function SearchPage() {
                       Sales for "{searchedTerm}"
                       <span className="count-badge">{matchedProducts.length} product{matchedProducts.length !== 1 ? 's' : ''}</span>
                     </h2>
+                    <p style={{ fontSize: '0.82rem', color: '#9b7d5e', marginBottom: '1rem' }}>
+                      Click a period to see individual sale dates.
+                    </p>
                     <table className="table">
                       <thead>
                         <tr>
@@ -259,16 +313,72 @@ export default function SearchPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {periodResults.map((row) => (
-                          <tr key={row.label}>
-                            <td className="product-name">{row.label}</td>
-                            <td>{row.units > 0 ? row.units : <span style={{ color: '#c49a6c' }}>—</span>}</td>
-                            <td>{row.transactions > 0 ? row.transactions : <span style={{ color: '#c49a6c' }}>—</span>}</td>
-                            <td className="revenue">
-                              {row.revenue > 0 ? formatCurrency(row.revenue) : <span style={{ color: '#c49a6c' }}>—</span>}
-                            </td>
-                          </tr>
-                        ))}
+                        {periodResults.map((row) => {
+                          const isOpen = expandedPeriod === row.label;
+                          const hasData = row.transactions > 0;
+                          return (
+                            <>
+                              <tr
+                                key={row.label}
+                                onClick={() => hasData && setExpandedPeriod(isOpen ? null : row.label)}
+                                style={{ cursor: hasData ? 'pointer' : 'default', background: isOpen ? '#fdf3e7' : undefined }}
+                              >
+                                <td className="product-name" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  {hasData && (
+                                    <span style={{
+                                      fontSize: '0.65rem',
+                                      color: '#9b7d5e',
+                                      display: 'inline-block',
+                                      transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                                      transition: 'transform 0.15s',
+                                    }}>▶</span>
+                                  )}
+                                  {row.label}
+                                </td>
+                                <td>{row.units > 0 ? row.units : <span style={{ color: '#c49a6c' }}>—</span>}</td>
+                                <td>{row.transactions > 0 ? row.transactions : <span style={{ color: '#c49a6c' }}>—</span>}</td>
+                                <td className="revenue">
+                                  {row.revenue > 0 ? formatCurrency(row.revenue) : <span style={{ color: '#c49a6c' }}>—</span>}
+                                </td>
+                              </tr>
+                              {isOpen && (
+                                <tr key={`${row.label}-expanded`}>
+                                  <td colSpan={4} style={{ padding: '0.75rem 1rem 1rem', background: '#fdf8f2', borderTop: '1px solid #ede0cc' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
+                                      <thead>
+                                        <tr style={{ borderBottom: '1px solid #e5d5be' }}>
+                                          <th style={{ textAlign: 'left', padding: '0.35rem 0.5rem', color: '#7a6555', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Date</th>
+                                          <th style={{ textAlign: 'left', padding: '0.35rem 0.5rem', color: '#7a6555', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Product</th>
+                                          <th style={{ textAlign: 'left', padding: '0.35rem 0.5rem', color: '#7a6555', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Qty</th>
+                                          <th style={{ textAlign: 'left', padding: '0.35rem 0.5rem', color: '#7a6555', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Price</th>
+                                          <th style={{ textAlign: 'left', padding: '0.35rem 0.5rem', color: '#7a6555', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Staff</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {row.sales.map((sale) => (
+                                          <tr key={sale.id} style={{ borderBottom: '1px solid #f0e6d6' }}>
+                                            <td style={{ padding: '0.4rem 0.5rem', color: '#3d2b1f', whiteSpace: 'nowrap' }}>
+                                              {formatDate(sale.date)}
+                                              {sale.timestamp && (
+                                                <span style={{ color: '#b8956a', marginLeft: '0.4rem', fontSize: '0.78rem' }}>
+                                                  {formatTime(sale.timestamp)}
+                                                </span>
+                                              )}
+                                            </td>
+                                            <td style={{ padding: '0.4rem 0.5rem', color: '#3d2b1f' }}>{sale.productName}</td>
+                                            <td style={{ padding: '0.4rem 0.5rem', color: '#3d2b1f' }}>{sale.quantity}</td>
+                                            <td style={{ padding: '0.4rem 0.5rem', color: '#3d2b1f', fontWeight: 600 }}>{formatCurrency(sale.total)}</td>
+                                            <td style={{ padding: '0.4rem 0.5rem', color: '#9b7d5e' }}>{sale.staffName || '—'}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </td>
+                                </tr>
+                              )}
+                            </>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -300,6 +410,64 @@ export default function SearchPage() {
                 </>
               )}
             </>
+          )}
+          {/* Handover Notes Search */}
+          <div className="section-card" style={{ marginTop: '1.5rem' }}>
+            <h2 className="section-title">Search Handover Notes</h2>
+            <p style={{ fontSize: '0.88rem', color: '#9b7d5e', marginBottom: '1rem' }}>
+              Search through all saved handover notes by keyword.
+            </p>
+            <div className="search-row">
+              <input
+                className="search-input"
+                type="text"
+                placeholder="e.g. delivery, hold, float, Mrs Taylor..."
+                value={handoverQuery}
+                onChange={(e) => setHandoverQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleHandoverSearch(); }}
+              />
+              <button
+                className="btn-primary"
+                onClick={handleHandoverSearch}
+                disabled={handoverLoading || !handoverQuery.trim()}
+              >
+                {handoverLoading ? 'Searching...' : 'Search'}
+              </button>
+            </div>
+            {handoverError && (
+              <div className="error-banner" style={{ marginTop: '1rem' }}>
+                <strong>Error:</strong> {handoverError}
+              </div>
+            )}
+          </div>
+
+          {handoverSearched && (
+            <div className="section-card">
+              <h2 className="section-title">
+                Handover notes matching "{handoverSearchedTerm}"
+                <span className="count-badge">{handoverResults.length}</span>
+              </h2>
+              {handoverResults.length === 0 ? (
+                <p className="empty-text">No handover notes found matching that keyword.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {handoverResults.map((note) => (
+                    <div key={note.date} className="handover-prev">
+                      <div className="handover-prev-label">
+                        {note.date}{note.updatedBy ? ` — left by ${note.updatedBy}` : ''}
+                      </div>
+                      <div className="handover-prev-text">
+                        {note.text.split(new RegExp(`(${handoverSearchedTerm})`, 'gi')).map((part, i) =>
+                          part.toLowerCase() === handoverSearchedTerm.toLowerCase()
+                            ? <mark key={i} style={{ background: '#fde68a', borderRadius: '3px', padding: '0 2px' }}>{part}</mark>
+                            : part
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </main>
       </div>

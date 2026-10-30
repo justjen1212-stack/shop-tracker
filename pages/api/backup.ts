@@ -26,8 +26,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // Protect against unauthorised triggers
+  // Accept either the backup secret OR an active auth session cookie
   const secret = req.headers['x-backup-secret'] ?? req.query.secret;
-  if (secret !== process.env.BACKUP_SECRET) {
+  const authCookie = req.cookies?.auth;
+  const isAuthenticated = authCookie === 'authenticated';
+  if (secret !== process.env.BACKUP_SECRET && !isAuthenticated) {
     return res.status(401).json({ error: 'Unauthorised' });
   }
 
@@ -64,10 +67,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const jsonContent = JSON.stringify(sales, null, 2);
     const csvContent = toCSV(sales);
 
-    const toEmail = process.env.BACKUP_EMAIL;
-    if (!toEmail) {
-      return res.status(500).json({ error: 'BACKUP_EMAIL env var not set' });
-    }
+    const toEmail = process.env.BACKUP_EMAIL ?? 'justjen1212@gmail.com';
 
     await resend.emails.send({
       from: 'Scape West <onboarding@resend.dev>',
