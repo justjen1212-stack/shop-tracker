@@ -73,6 +73,13 @@ interface CategoryStat {
   totalRevenue: number;
 }
 
+interface CategoryDateStat {
+  date: string;
+  unitsSold: number;
+  totalRevenue: number;
+  sales: Sale[];
+}
+
 function computeCategoryStats(sales: Sale[]): CategoryStat[] {
   const map = new Map<string, CategoryStat>();
   for (const sale of sales) {
@@ -86,6 +93,27 @@ function computeCategoryStats(sales: Sale[]): CategoryStat[] {
     }
   }
   return Array.from(map.values()).sort((a, b) => b.totalRevenue - a.totalRevenue);
+}
+
+function computeCategoryByDate(sales: Sale[], category: string): CategoryDateStat[] {
+  const map = new Map<string, CategoryDateStat>();
+  for (const sale of sales) {
+    if ((sale.category || 'Other') !== category) continue;
+    const existing = map.get(sale.date);
+    if (existing) {
+      existing.unitsSold += sale.quantity;
+      existing.totalRevenue += sale.total;
+      existing.sales.push(sale);
+    } else {
+      map.set(sale.date, { date: sale.date, unitsSold: sale.quantity, totalRevenue: sale.total, sales: [sale] });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
+}
+
+function formatDisplayDate(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function computeTop10(sales: Sale[]): { byQty: BestSeller[]; byValue: BestSeller[] } {
@@ -116,6 +144,8 @@ export default function BestSellers() {
   const [periodTab, setPeriodTab] = useState<PeriodTab>('week');
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(false);
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [expandedDateSales, setExpandedDateSales] = useState<string | null>(null);
 
   useEffect(() => {
     const cookies = document.cookie.split(';').map((c) => c.trim());
@@ -282,6 +312,9 @@ export default function BestSellers() {
           {sales.length > 0 && categoryStats.length > 0 && (
             <div className="section-card">
               <h2 className="section-title">Sales by Category</h2>
+              <p style={{ fontSize: '0.8rem', color: '#9b7d5e', marginBottom: '1rem' }}>
+                Click a category to see sales by date
+              </p>
               <table className="table">
                 <thead>
                   <tr>
@@ -289,17 +322,111 @@ export default function BestSellers() {
                     <th>Category</th>
                     <th>Units Sold</th>
                     <th>Revenue</th>
+                    <th style={{ width: '2rem' }}></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {categoryStats.map((cat, idx) => (
-                    <tr key={cat.category}>
-                      <td className="rank">{idx + 1}</td>
-                      <td className="product-name">{cat.category}</td>
-                      <td>{cat.unitsSold}</td>
-                      <td className="revenue">{formatCurrency(cat.totalRevenue)}</td>
-                    </tr>
-                  ))}
+                  {categoryStats.map((cat, idx) => {
+                    const isExpanded = expandedCategory === cat.category;
+                    const dateStats = isExpanded ? computeCategoryByDate(sales, cat.category) : [];
+                    return (
+                      <>
+                        <tr
+                          key={cat.category}
+                          onClick={() => {
+                            setExpandedCategory(isExpanded ? null : cat.category);
+                            setExpandedDateSales(null);
+                          }}
+                          style={{ cursor: 'pointer', background: isExpanded ? 'rgba(184,132,90,0.08)' : undefined }}
+                        >
+                          <td className="rank">{idx + 1}</td>
+                          <td className="product-name" style={{ fontWeight: isExpanded ? 700 : undefined }}>{cat.category}</td>
+                          <td>{cat.unitsSold}</td>
+                          <td className="revenue">{formatCurrency(cat.totalRevenue)}</td>
+                          <td style={{ textAlign: 'center', color: '#9b7d5e', fontSize: '0.75rem' }}>
+                            {isExpanded ? '▲' : '▼'}
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr key={`${cat.category}-dates`}>
+                            <td colSpan={5} style={{ padding: '0', background: 'rgba(184,132,90,0.04)', borderBottom: '2px solid rgba(184,132,90,0.2)' }}>
+                              <div style={{ padding: '0.75rem 1.25rem 1rem 2.5rem' }}>
+                                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#7d4e2d', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.6rem' }}>
+                                  {cat.category} — Sales by Date
+                                </div>
+                                <table className="table" style={{ background: 'transparent' }}>
+                                  <thead>
+                                    <tr>
+                                      <th>Date</th>
+                                      <th>Units</th>
+                                      <th>Revenue</th>
+                                      <th style={{ width: '2rem' }}></th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {dateStats.map((ds) => {
+                                      const dateExpanded = expandedDateSales === ds.date;
+                                      return (
+                                        <>
+                                          <tr
+                                            key={ds.date}
+                                            onClick={(e) => { e.stopPropagation(); setExpandedDateSales(dateExpanded ? null : ds.date); }}
+                                            style={{ cursor: 'pointer', background: dateExpanded ? 'rgba(184,132,90,0.1)' : undefined }}
+                                          >
+                                            <td style={{ fontWeight: 500 }}>{formatDisplayDate(ds.date)}</td>
+                                            <td>{ds.unitsSold}</td>
+                                            <td className="revenue">{formatCurrency(ds.totalRevenue)}</td>
+                                            <td style={{ textAlign: 'center', color: '#9b7d5e', fontSize: '0.75rem' }}>
+                                              {dateExpanded ? '▲' : '▼'}
+                                            </td>
+                                          </tr>
+                                          {dateExpanded && (
+                                            <tr key={`${ds.date}-items`}>
+                                              <td colSpan={4} style={{ padding: '0', background: 'rgba(184,132,90,0.06)' }}>
+                                                <div style={{ padding: '0.5rem 1rem 0.75rem 1.5rem' }}>
+                                                  <table className="table" style={{ background: 'transparent', fontSize: '0.82rem' }}>
+                                                    <thead>
+                                                      <tr>
+                                                        <th>Product</th>
+                                                        <th>Qty</th>
+                                                        <th>Unit Price</th>
+                                                        <th>Total</th>
+                                                        <th>Payment</th>
+                                                        <th>Staff</th>
+                                                      </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                      {ds.sales.map((s) => (
+                                                        <tr key={s.id} className={s.type === 'refund' ? 'tr--refund' : ''}>
+                                                          <td className="product-name">
+                                                            {s.productName}
+                                                            {s.type === 'refund' && <span className="refund-badge">Refund</span>}
+                                                          </td>
+                                                          <td>{s.quantity}</td>
+                                                          <td>{formatCurrency(s.pricePerUnit)}</td>
+                                                          <td className={s.type === 'refund' ? 'total-negative' : 'revenue'}>{formatCurrency(s.total)}</td>
+                                                          <td><span className={`payment-badge payment-badge--${s.paymentType}`}>{s.paymentType}</span></td>
+                                                          <td>{s.staffName}</td>
+                                                        </tr>
+                                                      ))}
+                                                    </tbody>
+                                                  </table>
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          )}
+                                        </>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
