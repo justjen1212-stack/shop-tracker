@@ -849,9 +849,11 @@ export default function Home() {
     }
   }, [authChecked, selectedDate, fetchHandover]);
 
-  // Fetch period totals once on mount
+  // Fetch period totals only when the Period Totals tab is opened (lazy — saves Firestore quota)
   useEffect(() => {
     if (!authChecked) return;
+    if (dashTab !== 'totals') return;
+    if (periodTotals !== null) return; // already loaded this session
     (async () => {
       const now = new Date();
       const pad = (n: number) => String(n).padStart(2, '0');
@@ -943,7 +945,7 @@ export default function Home() {
         // non-critical
       }
     })();
-  }, [authChecked]);
+  }, [authChecked, dashTab, periodTotals]);
 
   const stats = computeStats(sales);
   const bestSellers = computeBestSellers(sales);
